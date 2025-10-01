@@ -15,11 +15,11 @@ if errorlevel 1 (
 echo.
 
 echo [2/7] 生成图标文件...
-python3 -c "from PIL import Image; img = Image.open('icon.png'); img.save('icon.ico', format='ICO', sizes=[(256, 256)])" 2>nul
+python3 -c "from PIL import Image; img = Image.open('icon.png').convert('RGBA'); img.save('icon.ico', format='ICO', sizes=[(256, 256)])" 2>nul
 if errorlevel 1 (
     echo [INFO] Pillow not installed, installing...
     pip3 install Pillow
-    python3 -c "from PIL import Image; img = Image.open('icon.png'); img.save('icon.ico', format='ICO', sizes=[(256, 256)])"
+    python3 -c "from PIL import Image; img = Image.open('icon.png').convert('RGBA'); img.save('icon.ico', format='ICO', sizes=[(256, 256)])"
 )
 echo.
 
@@ -41,6 +41,7 @@ python3 -m PyInstaller --onefile --windowed ^
   --name QSerial ^
   --icon icon.ico ^
   --add-data "version.py;." ^
+  --add-data "icon.png;." ^
   --paths src ^
   --hidden-import pages.work_tab ^
   --hidden-import components.serial_settings_panel ^
@@ -70,13 +71,10 @@ for /f "tokens=3 delims= " %%a in ('findstr /C:"VERSION = " version.py') do set 
 set VERSION=%VERSION:"=%
 echo [INFO] Version: %VERSION%
 
-REM 复制图标到dist目录
-copy icon.png dist\ >nul
-
 REM 创建压缩包
 cd dist
 if exist QSerial_v%VERSION%.zip del QSerial_v%VERSION%.zip
-powershell -Command "Compress-Archive -Path QSerial.exe,icon.png -DestinationPath QSerial_v%VERSION%.zip -Force"
+powershell -Command "Compress-Archive -Path QSerial.exe -DestinationPath QSerial_v%VERSION%.zip -Force"
 cd ..
 echo.
 

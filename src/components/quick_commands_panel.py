@@ -7,6 +7,7 @@ Email: vitoyuz@foxmail.com
 
 import tkinter as tk
 from tkinter import ttk, messagebox
+from utils.dialog_utils import DialogUtils
 
 class QuickCommandsPanel(ttk.Frame):
     """快捷指令面板"""
@@ -277,6 +278,12 @@ class CommandDialog(tk.Toplevel):
         self.title(title)
         self.result = None
         
+        # 设置模态
+        self.transient(parent)
+        
+        # 先隐藏窗口，避免闪烁
+        self.withdraw()
+        
         # 名称
         ttk.Label(self, text='名称:').grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.name_entry = ttk.Entry(self, width=30)
@@ -305,15 +312,8 @@ class CommandDialog(tk.Toplevel):
         ttk.Button(btn_frame, text='确定', command=self._ok).pack(side='left', padx=5)
         ttk.Button(btn_frame, text='取消', command=self._cancel).pack(side='left', padx=5)
         
-        # 设置对话框
-        self.transient(parent)
-        self.grab_set()
-        
-        # 相对主窗口居中显示
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f'+{x}+{y}')
+        # 使用工具类显示对话框
+        DialogUtils.show_modal_dialog(self, parent)
         
         self.name_entry.focus()
         self.wait_window()
@@ -343,6 +343,12 @@ class InputDialog(tk.Toplevel):
         self.title(title)
         self.result = None
         
+        # 设置模态
+        self.transient(parent)
+        
+        # 先隐藏窗口，避免闪烁
+        self.withdraw()
+        
         # 标签
         ttk.Label(self, text=label).grid(row=0, column=0, padx=10, pady=10, sticky='w')
         
@@ -359,15 +365,8 @@ class InputDialog(tk.Toplevel):
         ttk.Button(btn_frame, text='确定', command=self._ok).pack(side='left', padx=5)
         ttk.Button(btn_frame, text='取消', command=self._cancel).pack(side='left', padx=5)
         
-        # 设置对话框
-        self.transient(parent)
-        self.grab_set()
-        
-        # 相对主窗口居中显示
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f'+{x}+{y}')
+        # 使用工具类显示对话框
+        DialogUtils.show_modal_dialog(self, parent)
         
         self.entry.focus()
         
