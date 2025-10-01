@@ -35,12 +35,20 @@ class SerialToolApp(tk.Tk):
     def __init__(self):
         super().__init__()
         
-        self.title(f'Quickky Serial Tool v{VERSION}')
-        self.geometry('1200x700')
+        self.title(f'QSerial v{VERSION}')
+        self.geometry('1024x600')
         
         # 设置窗口图标
         try:
-            icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'icon.png')
+            # 获取应用程序的基础路径
+            if getattr(sys, 'frozen', False):
+                # 打包后的exe环境
+                base_path = os.path.dirname(sys.executable)
+            else:
+                # 开发环境
+                base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            
+            icon_path = os.path.join(base_path, 'icon.png')
             if os.path.exists(icon_path):
                 icon_image = tk.PhotoImage(file=icon_path)
                 self.iconphoto(True, icon_image)
@@ -578,7 +586,7 @@ class SerialToolApp(tk.Tk):
     
     def _show_about(self):
         """显示关于"""
-        about_text = f"""Quickky Serial Tool
+        about_text = f"""QSerial (Quickky Serial Tool)
 
 版本: {VERSION}
 构建时间: {BUILD_TIME}

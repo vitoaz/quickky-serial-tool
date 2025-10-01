@@ -7,6 +7,7 @@ Email: vitoyuz@foxmail.com
 
 import json
 import os
+import sys
 from pathlib import Path
 
 class ConfigManager:
@@ -19,8 +20,16 @@ class ConfigManager:
         Args:
             config_file (str): 配置文件名
         """
+        # 获取应用程序的基础路径
+        if getattr(sys, 'frozen', False):
+            # 打包后的exe环境
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # 开发环境
+            base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        
         # 配置文件路径（与程序同级目录）
-        self.config_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), config_file)
+        self.config_file = os.path.join(base_path, config_file)
         self.config = self._load_config()
     
     def _get_default_config(self):

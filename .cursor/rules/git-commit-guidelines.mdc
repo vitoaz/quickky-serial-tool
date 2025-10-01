@@ -62,16 +62,6 @@ feat: 添加新功能
 
 为避免提交信息中文乱码问题，需要进行以下配置：
 
-### 一次性配置（全局设置）
-
-```bash
-# 设置 Git 提交信息使用 UTF-8 编码
-git config --global i18n.commitencoding utf-8
-
-# 设置 Git 日志输出使用 UTF-8 编码
-git config --global i18n.logoutputencoding utf-8
-```
-
 ### Windows PowerShell 临时设置
 
 每次在 PowerShell 中使用 Git 前执行：

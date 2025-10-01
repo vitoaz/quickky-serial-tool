@@ -27,5 +27,3 @@ echo [3/3] 启动应用程序...
 python3 src/main/app.py
 
 echo.
-pause
-
