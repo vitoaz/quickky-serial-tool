@@ -1,0 +1,49 @@
+---
+alwaysApply: true
+description: Python开发规范和技术栈要求
+---
+
+# Python开发规范
+
+## 技术栈
+
+项目使用以下技术栈：
+
+- **Python 3.x**: 主开发语言
+- **Tkinter**: GUI界面框架
+- **pyserial**: 串口通信库
+- **PyInstaller**: 打包工具
+
+## Python命令规范
+
+**重要**: 所有Python相关命令必须使用以下格式：
+
+- 使用 `python3` 而不是 `python`
+- 使用 `pip3` 而不是 `pip`
+
+示例：
+```bash
+python3 src/main/app.py
+pip3 install pyserial
+```
+
+## 代码作者信息
+
+每个Python文件开头必须包含以下作者信息：
+
+```python
+"""
+模块描述
+
+Author: Aaz
+Email: vitoyuz@foxmail.com
+"""
+```
+
+## 编码规范
+
+1. 使用UTF-8编码
+2. 遵循PEP 8代码规范
+3. 类名使用驼峰命名法（CamelCase）
+4. 函数和变量使用下划线命名法（snake_case）
+5. 常量使用全大写（UPPER_CASE）

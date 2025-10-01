@@ -1,0 +1,38 @@
+---
+alwaysApply: true
+description: 项目结构和目录组织规范
+---
+
+# 项目结构规范
+
+## 目录结构
+
+项目采用以下目录结构组织：
+
+```
+quickky-serial-tool/
+├── src/                    # 源代码目录
+│   ├── main/              # 主入口代码
+│   │   └── app.py         # 启动代码
+│   ├── utils/             # 工具类
+│   ├── pages/             # 窗体页面
+│   └── components/        # 自定义控件
+├── version.py             # 版本号和构建时间（自动生成）
+├── run.bat               # 调试运行脚本
+└── build.bat             # 构建脚本
+```
+
+## 主要文件说明
+
+- **[src/main/app.py](mdc:src/main/app.py)**: 应用程序启动入口
+- **[version.py](mdc:version.py)**: 版本信息文件，由run.bat和build.bat自动生成
+- **[run.bat](mdc:run.bat)**: 开发调试脚本
+- **[build.bat](mdc:build.bat)**: 生产构建脚本
+
+## 代码组织原则
+
+1. 所有源代码必须放在`src`目录下
+2. 主入口代码放在`src/main`目录
+3. 通用工具类放在`src/utils`目录
+4. 窗体页面放在`src/pages`目录
+5. 可复用组件放在`src/components`目录

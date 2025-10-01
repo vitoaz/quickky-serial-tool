@@ -1,0 +1,70 @@
+---
+alwaysApply: true
+description: 构建系统和脚本规范
+---
+
+# 构建系统规范
+
+## 版本管理
+
+### version.py 自动生成
+
+[version.py](mdc:version.py) 文件由构建脚本自动生成，包含：
+
+```python
+"""
+版本信息（自动生成，请勿手动编辑）
+
+Author: Aaz
+Email: vitoyuz@foxmail.com
+"""
+
+VERSION = "1.0.0"
+BUILD_TIME = "2025-09-30 12:00:00"
+```
+
+### 版本号规则
+
+采用语义化版本号（Semantic Versioning）：
+- 格式: `主版本号.次版本号.修订号`
+- 例如: `1.0.0`, `1.2.3`, `2.0.0`
+
+## 构建脚本
+
+### run.bat - 调试运行脚本
+
+[run.bat](mdc:run.bat) 用于开发调试，应包含以下功能：
+
+1. 自动生成 version.py
+2. 检查依赖是否安装
+3. 使用 python3 运行应用
+
+脚本应包含必要的步骤，无需具体实现细节
+
+### build.bat - 构建脚本
+
+[build.bat](mdc:build.bat) 用于生产构建，应包含以下功能：
+
+1. 自动生成 version.py
+2. 使用 PyInstaller 打包应用
+3. 清理临时文件
+4. 生成可执行文件到 dist 目录
+
+脚本应按顺序执行必要的构建步骤
+
+## PyInstaller配置
+
+打包时建议使用以下参数：
+- `--onefile`: 打包成单个exe文件
+- `--windowed`: 不显示控制台窗口（GUI应用）
+- `--name`: 指定生成的exe文件名
+- `--icon`: 指定应用图标
+
+## 依赖管理
+
+创建 [requirements.txt](mdc:requirements.txt) 文件列出所有依赖及版本要求。
+
+使用以下命令安装依赖：
+```bash
+pip3 install -r requirements.txt
+```
