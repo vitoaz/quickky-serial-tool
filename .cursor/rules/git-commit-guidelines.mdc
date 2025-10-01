@@ -58,14 +58,68 @@ feat: 添加新功能
 - 相关配置或文档更新
 ```
 
+## Git 中文编码配置
+
+为避免提交信息中文乱码问题，需要进行以下配置：
+
+### 一次性配置（全局设置）
+
+```bash
+# 设置 Git 提交信息使用 UTF-8 编码
+git config --global i18n.commitencoding utf-8
+
+# 设置 Git 日志输出使用 UTF-8 编码
+git config --global i18n.logoutputencoding utf-8
+```
+
+### Windows PowerShell 临时设置
+
+每次在 PowerShell 中使用 Git 前执行：
+
+```bash
+# 设置 PowerShell 使用 UTF-8 编码
+chcp 65001
+```
+
+### 提交中文信息的最佳实践
+
+**方法1：使用文件方式提交（推荐）**
+
+```bash
+# 1. 创建临时文件写入提交信息
+echo "feat: 实现新功能
+
+- 功能点1
+- 功能点2" > commit_msg.txt
+
+# 2. 使用文件提交
+git commit -F commit_msg.txt
+
+# 3. 删除临时文件
+del commit_msg.txt
+```
+
+**方法2：使用简短的单行信息**
+
+```bash
+git commit -m "feat: 实现新功能"
+```
+
+**注意事项：**
+- 避免在 PowerShell 中使用多行 `-m` 参数
+- 复杂的提交信息建议使用文件方式
+- 提交后使用 `git log -1` 验证中文显示正常
+
 ## 提交流程
 
 ```
 1. 完成代码修改
 2. 检查并更新 README.md 和 QUICKSTART.md
-3. 展示提交信息给用户
-4. 等待用户确认
-5. 执行 git add 和 git commit
+3. 配置 Git 中文编码（如未配置）
+4. 展示提交信息给用户
+5. 等待用户确认
+6. 执行 git add 和 git commit（使用文件方式处理中文）
+7. 验证提交信息显示正常
 ```
 
 **禁止在未经用户确认的情况下自动提交代码。**

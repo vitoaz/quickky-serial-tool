@@ -74,6 +74,13 @@ class SerialToolApp(tk.Tk):
         file_menu.add_separator()
         file_menu.add_command(label='退出', command=self._on_closing)
         
+        # 视图菜单
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label='视图', menu=view_menu)
+        self.dual_panel_var = tk.BooleanVar(value=self.config_manager.get_dual_panel_mode())
+        view_menu.add_checkbutton(label='双栏模式', variable=self.dual_panel_var, 
+                                  command=self._toggle_dual_panel)
+        
         # 帮助菜单
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label='帮助', menu=help_menu)
@@ -85,26 +92,13 @@ class SerialToolApp(tk.Tk):
         self.main_paned = ttk.PanedWindow(self, orient='horizontal')
         self.main_paned.pack(fill='both', expand=True)
         
-        # 左侧工作面板
-        left_frame = ttk.Frame(self.main_paned)
-        self.main_paned.add(left_frame, weight=3)
+        # 左侧工作面板（支持双栏）
+        self.work_area_container = ttk.Frame(self.main_paned)
+        self.main_paned.add(self.work_area_container, weight=3)
         
-        # 创建Notebook
-        self.work_notebook = ttk.Notebook(left_frame)
-        self.work_notebook.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        # 创建加号Tab（作为占位符）
-        self.add_tab_placeholder = ttk.Frame(self.work_notebook)
-        self.work_notebook.add(self.add_tab_placeholder, text='+')
-        
-        # 绑定Tab切换事件
-        self.work_notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
-        # 绑定双击Tab关闭
-        self.work_notebook.bind('<Double-Button-1>', self._on_double_click)
-        # 绑定鼠标中键点击关闭Tab
-        self.work_notebook.bind('<Button-2>', self._on_middle_click)
-        # 绑定右键菜单
-        self.work_notebook.bind('<Button-3>', self._on_right_click)
+        # 创建工作区域（单栏或双栏）
+        self.dual_panel_mode = self.config_manager.get_dual_panel_mode()
+        self._create_work_area()
         
         # 右侧命令面板容器
         self.right_container = ttk.Frame(self.main_paned)
@@ -149,6 +143,46 @@ class SerialToolApp(tk.Tk):
         )
         self.command_notebook.add(self.send_history_panel, text='历史发送')
     
+    def _create_work_area(self):
+        """创建工作区域（支持双栏）"""
+        # 创建工作区域的PanedWindow（始终存在）
+        self.work_paned = ttk.PanedWindow(self.work_area_container, orient='horizontal')
+        self.work_paned.pack(fill='both', expand=True)
+        
+        # 左栏（主栏，始终存在）
+        self.main_panel = ttk.Frame(self.work_paned)
+        self.work_paned.add(self.main_panel, weight=1)
+        
+        self.work_notebook = self._create_notebook(self.main_panel)
+        
+        # 右栏（副栏，根据双栏模式显示/隐藏）
+        self.secondary_panel = ttk.Frame(self.work_paned)
+        self.work_notebook_secondary = self._create_notebook(self.secondary_panel)
+        
+        # 根据配置决定是否显示副栏
+        if self.dual_panel_mode:
+            self.work_paned.add(self.secondary_panel, weight=1)
+    
+    def _create_notebook(self, parent):
+        """创建一个Notebook控件"""
+        notebook = ttk.Notebook(parent)
+        notebook.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # 创建加号Tab（作为占位符）
+        add_tab_placeholder = ttk.Frame(notebook)
+        notebook.add(add_tab_placeholder, text='+')
+        
+        # 绑定Tab切换事件
+        notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+        # 绑定双击Tab关闭
+        notebook.bind('<Double-Button-1>', self._on_double_click)
+        # 绑定鼠标中键点击关闭Tab
+        notebook.bind('<Button-2>', self._on_middle_click)
+        # 绑定右键菜单
+        notebook.bind('<Button-3>', self._on_right_click)
+        
+        return notebook
+    
     def _create_initial_tab(self):
         """创建初始工作Tab"""
         self._add_work_tab()
@@ -156,50 +190,113 @@ class SerialToolApp(tk.Tk):
     def _on_double_click(self, event):
         """双击Tab关闭"""
         try:
-            clicked_tab = self.work_notebook.tk.call(self.work_notebook._w, "identify", "tab", event.x, event.y)
+            # 获取触发事件的notebook
+            notebook = event.widget
+            clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
             if clicked_tab != '':
                 index = int(clicked_tab)
-                # 如果不是加号Tab，则关闭
-                if index < len(self.work_tabs):
-                    self._close_tab(index)
+                # 获取实际的Tab widget
+                tab_widget = notebook.nametowidget(notebook.tabs()[index])
+                # 关闭Tab
+                self._close_tab_widget(tab_widget, notebook)
         except:
             pass
     
     def _on_middle_click(self, event):
         """鼠标中键点击关闭Tab"""
         try:
-            clicked_tab = self.work_notebook.tk.call(self.work_notebook._w, "identify", "tab", event.x, event.y)
+            # 获取触发事件的notebook
+            notebook = event.widget
+            clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
             if clicked_tab != '':
                 index = int(clicked_tab)
-                # 如果不是加号Tab，则关闭
-                if index < len(self.work_tabs):
-                    self._close_tab(index)
+                # 获取实际的Tab widget
+                tab_widget = notebook.nametowidget(notebook.tabs()[index])
+                # 关闭Tab
+                self._close_tab_widget(tab_widget, notebook)
         except:
             pass
     
     def _on_right_click(self, event):
         """右键菜单"""
         try:
-            clicked_tab = self.work_notebook.tk.call(self.work_notebook._w, "identify", "tab", event.x, event.y)
+            # 获取触发事件的notebook
+            notebook = event.widget
+            clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
             if clicked_tab != '':
                 index = int(clicked_tab)
-                # 如果不是加号Tab，显示菜单
-                if index < len(self.work_tabs):
-                    menu = tk.Menu(self, tearoff=0)
-                    menu.add_command(label='关闭', command=lambda: self._close_tab(index))
-                    menu.post(event.x_root, event.y_root)
+                # 获取实际的Tab widget
+                tab_widget = notebook.nametowidget(notebook.tabs()[index])
+                # 显示菜单
+                menu = tk.Menu(self, tearoff=0)
+                menu.add_command(label='关闭', command=lambda: self._close_tab_widget(tab_widget, notebook))
+                menu.post(event.x_root, event.y_root)
         except:
             pass
     
     def _on_tab_changed(self, event):
         """Tab切换事件处理"""
+        # 确定是哪个notebook触发的事件
+        notebook = event.widget
+        
         # 获取当前选中的Tab索引
-        current_index = self.work_notebook.index('current')
+        current_index = notebook.index('current')
         
         # 如果点击的是加号Tab（最后一个）
-        if current_index == self.work_notebook.index('end') - 1:
-            # 创建新Tab
-            self._add_work_tab()
+        if current_index == notebook.index('end') - 1:
+            # 计算该notebook当前有多少个普通Tab（不含加号）
+            notebook_tab_count = notebook.index('end') - 1
+            
+            # 只有在该notebook已经有Tab的情况下才允许创建新Tab
+            # 这样可以防止关闭最后一个Tab后自动创建新Tab
+            if notebook_tab_count > 0:
+                # 在对应的notebook创建新Tab
+                self._add_work_tab(notebook=notebook)
+    
+    def _toggle_dual_panel(self):
+        """切换双栏模式"""
+        self.dual_panel_mode = self.dual_panel_var.get()
+        self.config_manager.set_dual_panel_mode(self.dual_panel_mode)
+        
+        if self.dual_panel_mode:
+            # 切换到双栏：显示副栏
+            self.work_paned.add(self.secondary_panel, weight=1)
+            
+            # 检查副栏是否有Tab，如果没有则创建一个
+            secondary_tab_count = self.work_notebook_secondary.index('end') - 1  # 排除加号Tab
+            if secondary_tab_count == 0:
+                self._add_work_tab(notebook=self.work_notebook_secondary)
+        else:
+            # 取消双栏：隐藏副栏
+            # 首先关闭副栏所有Tab的串口连接
+            secondary_tab_count = self.work_notebook_secondary.index('end') - 1
+            tabs_to_remove = []
+            
+            for i in range(secondary_tab_count):
+                try:
+                    tab = self.work_notebook_secondary.nametowidget(self.work_notebook_secondary.tabs()[i])
+                    if tab in self.work_tabs:
+                        # 关闭串口连接
+                        if hasattr(tab, 'serial_manager') and tab.serial_manager.is_open():
+                            tab._disconnect()
+                        tabs_to_remove.append(tab)
+                except:
+                    pass
+            
+            # 从work_tabs列表中移除副栏的Tab
+            for tab in tabs_to_remove:
+                if tab in self.work_tabs:
+                    self.work_tabs.remove(tab)
+            
+            # 清空副栏所有Tab
+            for i in range(secondary_tab_count - 1, -1, -1):
+                try:
+                    self.work_notebook_secondary.forget(i)
+                except:
+                    pass
+            
+            # 移除副栏
+            self.work_paned.remove(self.secondary_panel)
     
     def _apply_initial_panel_state(self):
         """应用初始面板状态"""
@@ -224,50 +321,79 @@ class SerialToolApp(tk.Tk):
         # 保存状态到配置
         self.config_manager.set_command_panel_visible(self.right_panel_visible)
     
-    def _add_work_tab(self):
+    def _add_work_tab(self, notebook=None):
         """添加工作Tab"""
+        # 如果没有指定notebook，使用主notebook
+        if notebook is None:
+            notebook = self.work_notebook
+        
         # 第一个Tab显示为默认标题，其他显示New Tab
         is_first_tab = (self.tab_counter == 1)
         tab_name = 'New Tab'
         
-        work_tab = WorkTab(self.work_notebook, self.config_manager, tab_name, is_first_tab)
+        work_tab = WorkTab(notebook, self.config_manager, tab_name, is_first_tab)
         
         # 在加号Tab之前插入新Tab
-        insert_index = self.work_notebook.index('end') - 1
-        self.work_notebook.insert(insert_index, work_tab, text=tab_name)
+        insert_index = notebook.index('end') - 1
+        notebook.insert(insert_index, work_tab, text=tab_name)
         
         self.work_tabs.append(work_tab)
         self.tab_counter += 1
         
         # 切换到新Tab
-        self.work_notebook.select(insert_index)
+        notebook.select(insert_index)
         
-        # 更新Tab标题，添加关闭按钮
-        self._update_tab_title(insert_index, tab_name)
+        # 更新Tab标题
+        self._update_tab_title_for_notebook(notebook, insert_index, tab_name)
     
     def _update_tab_title(self, index, title):
         """更新Tab标题"""
         self.work_notebook.tab(index, text=title)
     
-    def _close_tab(self, index):
-        """关闭指定Tab"""
-        # 至少保留一个Tab，静默处理
+    def _update_tab_title_for_notebook(self, notebook, index, title):
+        """更新指定notebook的Tab标题"""
+        notebook.tab(index, text=title)
+    
+    def _close_tab_widget(self, tab_widget, notebook):
+        """关闭指定的Tab widget"""
+        # 检查是否是加号Tab
+        if tab_widget not in self.work_tabs:
+            return
+        
+        # 至少保留一个Tab，静默处理（整个应用至少需要一个Tab）
         if len(self.work_tabs) <= 1:
             return
         
+        # 每个栏至少保留一个Tab
+        current_notebook_tabs = notebook.index('end') - 1  # 不含加号Tab
+        if current_notebook_tabs <= 1:
+            # 该栏只有1个Tab，不允许关闭
+            return
+        
         # 关闭串口连接
-        tab = self.work_tabs[index]
-        if hasattr(tab, 'serial_manager') and tab.serial_manager.is_open():
-            tab._disconnect()
+        if hasattr(tab_widget, 'serial_manager') and tab_widget.serial_manager.is_open():
+            tab_widget._disconnect()
         
-        # 移除Tab
-        self.work_notebook.forget(index)
-        self.work_tabs.pop(index)
+        # 获取Tab在notebook中的索引
+        try:
+            tab_index = notebook.index(tab_widget)
+        except:
+            return
         
-        # 如果有Tab剩余，选中前一个
-        if self.work_tabs:
-            new_index = max(0, index - 1)
-            self.work_notebook.select(new_index)
+        # 计算删除后该notebook还剩多少Tab（不包括加号Tab）
+        remaining_count = current_notebook_tabs - 1  # 删除后剩余的Tab数量
+        
+        # 先选中其他Tab，避免自动选中"+"Tab
+        if remaining_count > 0:
+            new_index = min(tab_index, remaining_count - 1)  # 选中前一个或最后一个
+            notebook.select(new_index)
+        
+        # 从work_tabs列表中移除
+        if tab_widget in self.work_tabs:
+            self.work_tabs.remove(tab_widget)
+        
+        # 最后删除Tab
+        notebook.forget(tab_index)
     
     def _get_current_work_tab(self):
         """获取当前工作Tab"""

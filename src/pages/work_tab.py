@@ -162,6 +162,8 @@ class WorkTab(ttk.Frame):
     def _update_tab_title(self, port):
         """更新Tab标题"""
         try:
+            # 保存tab名称
+            self.tab_name = port
             # 获取当前Tab的索引
             tab_index = self.parent_notebook.index(self)
             # 更新Tab文本为串口号

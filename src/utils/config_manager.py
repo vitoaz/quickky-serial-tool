@@ -30,7 +30,8 @@ class ConfigManager:
             "port_configs": {},
             "quick_commands": [],
             "send_history": [],
-            "command_panel_visible": True  # 命令面板显示状态
+            "command_panel_visible": True,  # 命令面板显示状态
+            "dual_panel_mode": False  # 双栏模式
         }
     
     def _get_default_port_config(self):
@@ -99,7 +100,13 @@ class ConfigManager:
         if port not in self.config['port_configs']:
             self.config['port_configs'][port] = self._get_default_port_config()
             self.save_config()
-        return self.config['port_configs'][port]
+        
+        # 强制将save_log设为False（每次都需要重新选择文件）
+        config = self.config['port_configs'][port]
+        if 'receive_settings' in config:
+            config['receive_settings']['save_log'] = False
+        
+        return config
     
     def save_port_config(self, port, config):
         """
@@ -211,5 +218,14 @@ class ConfigManager:
         if port not in self.config['port_configs']:
             self.config['port_configs'][port] = self._get_default_port_config()
         self.config['port_configs'][port]['send_text'] = text
+        self.save_config()
+    
+    def get_dual_panel_mode(self):
+        """获取双栏模式状态"""
+        return self.config.get('dual_panel_mode', False)
+    
+    def set_dual_panel_mode(self, enabled):
+        """设置双栏模式状态"""
+        self.config['dual_panel_mode'] = enabled
         self.save_config()
 
