@@ -49,34 +49,6 @@ build.bat
 
 生成的可执行文件位于 `dist/QSerial.exe`，同时生成发布包 `dist/QSerial_v1.0.0.zip`
 
-## 项目结构
-
-```
-quickky-serial-tool/
-├── src/                    # 源代码目录
-│   ├── main/              # 主入口代码
-│   │   └── app.py         # 启动代码
-│   ├── utils/             # 工具类
-│   │   ├── config_manager.py      # 配置管理
-│   │   └── serial_manager.py      # 串口管理
-│   ├── pages/             # 窗体页面
-│   │   └── work_tab.py            # 工作Tab页面
-│   └── components/        # 自定义控件
-│       ├── serial_settings_panel.py    # 串口设置面板
-│       ├── receive_settings_panel.py   # 接收设置面板
-│       ├── send_settings_panel.py      # 发送设置面板
-│       ├── quick_commands_panel.py     # 快捷指令面板
-│       └── send_history_panel.py       # 历史发送面板
-├── scripts/               # 脚本目录
-│   └── generate_version.py        # 版本生成脚本
-├── version.py             # 版本信息（自动生成）
-├── run.bat               # 调试运行脚本
-├── build.bat             # 构建脚本
-├── requirements.txt      # 依赖列表
-└── README.md            # 说明文档
-```
-
-
 ## 技术栈
 
 - **Python 3.x**: 主开发语言
