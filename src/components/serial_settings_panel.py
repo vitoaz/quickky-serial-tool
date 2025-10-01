@@ -14,7 +14,8 @@ class SerialSettingsPanel(ttk.LabelFrame):
     
     # 常用波特率
     BAUDRATES = [300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 
-                 38400, 57600, 115200, 230400, 460800, 921600]
+                 38400, 57600, 115200, 230400, 460800, 921600, 
+                 1000000, 1500000, 2000000]
     
     # 校验位选项
     PARITIES = ['None', 'Even', 'Odd', 'Mark', 'Space']
@@ -48,7 +49,7 @@ class SerialSettingsPanel(ttk.LabelFrame):
         # 串口号
         ttk.Label(self, text='串口号:').grid(row=0, column=0, sticky='w', pady=2)
         self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(self, textvariable=self.port_var, width=18)
+        self.port_combo = ttk.Combobox(self, textvariable=self.port_var, state='readonly', width=18)
         self.port_combo.grid(row=0, column=1, pady=2, sticky='ew')
         self.port_combo['postcommand'] = self._refresh_ports
         self.port_combo.bind('<<ComboboxSelected>>', self._on_port_changed)

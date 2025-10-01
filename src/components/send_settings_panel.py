@@ -11,7 +11,7 @@ from tkinter import ttk
 class SendSettingsPanel(ttk.LabelFrame):
     """发送设置面板"""
     
-    def __init__(self, parent, config_manager, on_change_callback=None):
+    def __init__(self, parent, config_manager, on_change_callback=None, on_mode_change_callback=None):
         """
         初始化发送设置面板
         
@@ -19,10 +19,12 @@ class SendSettingsPanel(ttk.LabelFrame):
             parent: 父控件
             config_manager: 配置管理器
             on_change_callback: 配置变化回调函数
+            on_mode_change_callback: 模式切换回调函数(old_mode, new_mode)
         """
         super().__init__(parent, text='发送设置', padding=(8, 5))
         self.config_manager = config_manager
         self.on_change_callback = on_change_callback
+        self.on_mode_change_callback = on_mode_change_callback
         self.current_port = None
         
         self._create_widgets()
@@ -37,9 +39,9 @@ class SendSettingsPanel(ttk.LabelFrame):
         
         self.mode_var = tk.StringVar(value='TEXT')
         ttk.Radiobutton(mode_frame, text='TEXT', variable=self.mode_var, 
-                       value='TEXT', command=self._on_setting_changed).pack(side='left', padx=5)
+                       value='TEXT', command=self._on_mode_changed).pack(side='left', padx=5)
         ttk.Radiobutton(mode_frame, text='HEX', variable=self.mode_var, 
-                       value='HEX', command=self._on_setting_changed).pack(side='left', padx=5)
+                       value='HEX', command=self._on_mode_changed).pack(side='left', padx=5)
         
         # 循环发送
         loop_frame = ttk.Frame(self)
@@ -68,6 +70,20 @@ class SendSettingsPanel(ttk.LabelFrame):
             self.loop_period_entry.config(state='normal')
         else:
             self.loop_period_entry.config(state='disabled')
+            # 如果取消循环发送，通知停止循环
+            if self.on_change_callback:
+                self.on_change_callback({'loop_send': False, 'stop_loop': True})
+        
+        self._on_setting_changed()
+    
+    def _on_mode_changed(self):
+        """模式切换事件"""
+        old_mode = 'HEX' if self.mode_var.get() == 'TEXT' else 'TEXT'
+        new_mode = self.mode_var.get()
+        
+        # 通知模式切换
+        if self.on_mode_change_callback:
+            self.on_mode_change_callback(old_mode, new_mode)
         
         self._on_setting_changed()
     

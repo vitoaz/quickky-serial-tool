@@ -80,9 +80,15 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
                        variable=self.auto_reconnect_var,
                        command=self._on_setting_changed).grid(row=4, column=0, columnspan=2, sticky='w', pady=2)
         
+        # 自动滚屏
+        self.auto_scroll_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(self, text='自动滚屏', 
+                       variable=self.auto_scroll_var,
+                       command=self._on_setting_changed).grid(row=5, column=0, columnspan=2, sticky='w', pady=2)
+        
         # 清除接收按钮
         clear_btn = tk.Label(self, text='清除接收', fg='blue', cursor='hand2')
-        clear_btn.grid(row=5, column=0, columnspan=2, sticky='w', pady=5)
+        clear_btn.grid(row=6, column=0, columnspan=2, sticky='w', pady=5)
         clear_btn.bind('<Button-1>', self._on_clear_clicked)
         clear_btn.bind('<Enter>', lambda e: clear_btn.config(font=('', 9, 'underline')))
         clear_btn.bind('<Leave>', lambda e: clear_btn.config(font=('', 9)))
@@ -136,7 +142,8 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
             'encoding': self.encoding_var.get(),
             'log_mode': self.log_mode_var.get(),
             'save_log': self.save_log_var.get(),
-            'auto_reconnect': self.auto_reconnect_var.get()
+            'auto_reconnect': self.auto_reconnect_var.get(),
+            'auto_scroll': self.auto_scroll_var.get()
         }
     
     def load_config(self, port, config):
@@ -147,6 +154,7 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
         self.log_mode_var.set(config.get('log_mode', False))
         self.save_log_var.set(config.get('save_log', False))
         self.auto_reconnect_var.set(config.get('auto_reconnect', False))
+        self.auto_scroll_var.set(config.get('auto_scroll', True))
         
         # 更新编码选择状态
         self._on_mode_changed()

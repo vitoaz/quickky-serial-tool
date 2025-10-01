@@ -17,7 +17,7 @@ from utils.serial_manager import SerialManager
 class WorkTab(ttk.Frame):
     """工作Tab"""
     
-    def __init__(self, parent, config_manager, tab_name='New Tab', is_first_tab=False):
+    def __init__(self, parent, config_manager, tab_name='New Tab', is_first_tab=False, on_widget_click=None, on_data_sent=None, panel_type='main'):
         """
         初始化工作Tab
         
@@ -26,12 +26,18 @@ class WorkTab(ttk.Frame):
             config_manager: 配置管理器
             tab_name: Tab名称
             is_first_tab: 是否为第一个Tab
+            on_widget_click: 控件点击回调函数
+            on_data_sent: 数据发送后回调函数
+            panel_type: 面板类型 ('main' 或 'secondary')
         """
         super().__init__(parent)
         self.config_manager = config_manager
         self.tab_name = tab_name
         self.parent_notebook = parent
         self.is_first_tab = is_first_tab
+        self.on_widget_click = on_widget_click
+        self.on_data_sent = on_data_sent
+        self.panel_type = panel_type
         self.serial_manager = SerialManager()
         self.log_file = None
         self.loop_send_timer = None
@@ -81,7 +87,8 @@ class WorkTab(ttk.Frame):
         
         # 发送设置
         self.send_settings = SendSettingsPanel(left_pane, self.config_manager,
-                                               on_change_callback=self._on_send_config_changed)
+                                               on_change_callback=self._on_send_config_changed,
+                                               on_mode_change_callback=self._on_send_mode_changed)
         self.send_settings.pack(fill='x', pady=3)
         
         # 右侧数据区
@@ -92,12 +99,18 @@ class WorkTab(ttk.Frame):
         self.receive_text = scrolledtext.ScrolledText(receive_frame, height=15, state='disabled')
         self.receive_text.pack(fill='both', expand=True)
         
+        # 绑定接收区点击事件
+        self.receive_text.bind('<Button-1>', self._on_widget_clicked)
+        
         # 发送区
         send_frame = ttk.LabelFrame(right_pane, text='数据发送', padding=5)
         send_frame.pack(fill='both')
         
         self.send_text = tk.Text(send_frame, height=5)
         self.send_text.pack(fill='both', expand=True)
+        
+        # 绑定发送区点击事件
+        self.send_text.bind('<Button-1>', self._on_widget_clicked)
         
         # 绑定文本改变事件，自动保存
         self.send_text.bind('<<Modified>>', self._on_send_text_modified)
@@ -116,8 +129,11 @@ class WorkTab(ttk.Frame):
         self.send_error_label = tk.Label(send_btn_frame, text='', fg='red', font=('', 9))
         self.send_error_label.pack(side='left', padx=(10, 0))
         
-        self.send_btn = ttk.Button(send_btn_frame, text='发送', command=self._send_data, state='disabled')
+        self.send_btn = ttk.Button(send_btn_frame, text='发送', command=self._toggle_send, state='disabled')
         self.send_btn.pack(side='right')
+        
+        # 循环发送状态
+        self.is_loop_sending = False
     
     def _setup_callbacks(self):
         """设置回调函数"""
@@ -127,7 +143,7 @@ class WorkTab(ttk.Frame):
         # 只有第一个Tab才默认选择串口
         if self.is_first_tab:
             # 加载上次使用的串口配置或默认选择第一个
-            last_port = self.config_manager.get_last_port()
+            last_port = self.config_manager.get_last_port(self.panel_type)
             if last_port:
                 self.serial_settings.set_current_port(last_port)
             else:
@@ -145,6 +161,9 @@ class WorkTab(ttk.Frame):
             if current_port and current_port != value:
                 current_text = self.send_text.get('1.0', 'end-1c')
                 self.config_manager.set_send_text(current_port, current_text)
+            
+            # 保存当前面板的最后使用串口
+            self.config_manager.set_last_port(value, self.panel_type)
             
             # 加载该串口的接收和发送配置
             config = self.config_manager.get_port_config(value)
@@ -181,9 +200,41 @@ class WorkTab(ttk.Frame):
         # 弹出文件选择对话框
         return self._select_log_file()
     
+    def _on_send_mode_changed(self, old_mode, new_mode):
+        """发送模式切换"""
+        # 获取当前发送文本
+        text = self.send_text.get('1.0', 'end-1c').strip()
+        if not text:
+            return
+        
+        try:
+            if old_mode == 'TEXT' and new_mode == 'HEX':
+                # TEXT -> HEX: 将文本转为HEX格式
+                hex_str = ' '.join([f'{ord(c):02X}' for c in text])
+                self.send_text.delete('1.0', 'end')
+                self.send_text.insert('1.0', hex_str)
+            elif old_mode == 'HEX' and new_mode == 'TEXT':
+                # HEX -> TEXT: 将HEX转为文本
+                # 移除空格和换行
+                hex_str = text.replace(' ', '').replace('\n', '').replace('\r', '')
+                # 转换为字节
+                if hex_str:
+                    bytes_data = bytes.fromhex(hex_str)
+                    # 尝试解码为文本
+                    text_str = bytes_data.decode('utf-8', errors='ignore')
+                    self.send_text.delete('1.0', 'end')
+                    self.send_text.insert('1.0', text_str)
+        except Exception as e:
+            # 转换失败时不做处理
+            pass
+    
     def _on_send_config_changed(self, settings):
         """发送配置变化"""
-        pass
+        # 检查是否需要停止循环发送
+        if settings.get('stop_loop') and self.is_loop_sending:
+            self._stop_loop_send()
+            self.is_loop_sending = False
+            self.send_btn.config(text='发送')
     
     def _on_send_text_modified(self, event=None):
         """发送文本修改事件"""
@@ -284,16 +335,35 @@ class WorkTab(ttk.Frame):
         """串口断开"""
         self.after(0, lambda: self._append_receive('[警告] 串口已断开\n', 'orange'))
     
-    def _send_data(self):
-        """发送数据"""
+    def _toggle_send(self):
+        """切换发送/取消循环发送"""
+        if self.is_loop_sending:
+            # 停止循环发送
+            self._stop_loop_send()
+            self.is_loop_sending = False
+            self.send_btn.config(text='发送')
+        else:
+            # 正常发送
+            self._send_data()
+    
+    def _send_data(self, override_mode=None):
+        """
+        发送数据
+        
+        Args:
+            override_mode: 覆盖的发送模式(TEXT/HEX)，如果指定则使用该模式，否则使用当前设置的模式
+        """
         data = self.send_text.get('1.0', 'end-1c')
         if not data:
             return
         
         settings = self.send_settings.get_settings()
         
+        # 使用覆盖的模式或当前设置的模式
+        send_mode = override_mode if override_mode else settings['mode']
+        
         # HEX模式下检查格式
-        if settings['mode'] == 'HEX':
+        if send_mode == 'HEX':
             if not self._validate_hex_format(data):
                 self.send_error_label.config(text='HEX格式错误，请输入有效的十六进制字符')
                 # 3秒后清除错误提示
@@ -303,13 +373,19 @@ class WorkTab(ttk.Frame):
         # 清除错误提示
         self.send_error_label.config(text='')
         
-        if self.serial_manager.send(data, settings['mode'], 
+        if self.serial_manager.send(data, send_mode, 
                                     self.receive_settings.get_settings()['encoding']):
-            # 添加到发送历史
-            self.config_manager.add_send_history(data)
+            # 添加到发送历史（带模式和时间）
+            self.config_manager.add_send_history(data, send_mode)
             
-            # 循环发送
-            if settings['loop_send']:
+            # 通知数据已发送
+            if self.on_data_sent:
+                self.on_data_sent()
+            
+            # 循环发送（只在非覆盖模式时生效）
+            if not override_mode and settings['loop_send']:
+                self.is_loop_sending = True
+                self.send_btn.config(text='取消发送')
                 self._start_loop_send()
         else:
             self._append_receive('[错误] 发送失败\n', 'red')
@@ -368,7 +444,12 @@ class WorkTab(ttk.Frame):
         self.receive_text.tag_config(tag_name, foreground=color)
         
         self.receive_text.insert('end', text, tag_name)
-        self.receive_text.see('end')
+        
+        # 根据自动滚屏设置决定是否滚动
+        settings = self.receive_settings.get_settings()
+        if settings.get('auto_scroll', True):
+            self.receive_text.see('end')
+        
         self.receive_text.config(state='disabled')
     
     def _select_log_file(self):
@@ -393,6 +474,11 @@ class WorkTab(ttk.Frame):
                 self._append_receive(f'[错误] 创建日志文件失败: {e}\n', 'red')
                 return False
         return False
+    
+    def _on_widget_clicked(self, event=None):
+        """控件点击事件"""
+        if self.on_widget_click:
+            self.on_widget_click(self)
     
     def cleanup(self):
         """清理资源"""

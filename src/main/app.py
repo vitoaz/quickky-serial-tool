@@ -54,6 +54,9 @@ class SerialToolApp(tk.Tk):
         self.work_tabs = []
         self.tab_counter = 1
         
+        # 当前激活的notebook（用于双栏模式）
+        self.active_notebook = None
+        
         self._create_menu()
         self._create_widgets()
         self._create_initial_tab()
@@ -80,6 +83,9 @@ class SerialToolApp(tk.Tk):
         self.dual_panel_var = tk.BooleanVar(value=self.config_manager.get_dual_panel_mode())
         view_menu.add_checkbutton(label='双栏模式', variable=self.dual_panel_var, 
                                   command=self._toggle_dual_panel)
+        self.command_panel_var = tk.BooleanVar(value=self.config_manager.get_command_panel_visible())
+        view_menu.add_checkbutton(label='命令面板', variable=self.command_panel_var,
+                                  command=self._toggle_command_panel)
         
         # 帮助菜单
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -94,22 +100,15 @@ class SerialToolApp(tk.Tk):
         
         # 左侧工作面板（支持双栏）
         self.work_area_container = ttk.Frame(self.main_paned)
-        self.main_paned.add(self.work_area_container, weight=3)
+        self.main_paned.add(self.work_area_container, weight=4)
         
         # 创建工作区域（单栏或双栏）
         self.dual_panel_mode = self.config_manager.get_dual_panel_mode()
         self._create_work_area()
         
-        # 右侧命令面板容器
-        self.right_container = ttk.Frame(self.main_paned)
-        self.main_paned.add(self.right_container, weight=1)
-        
-        # 收起按钮（在命令面板顶部）
-        toggle_frame = ttk.Frame(self.right_container)
-        toggle_frame.pack(fill='x', padx=5, pady=(5, 0))
-        
-        self.hide_btn = ttk.Button(toggle_frame, text='>>', width=3, command=self._toggle_right_panel)
-        self.hide_btn.pack(side='right')
+        # 右侧命令面板容器（设置固定宽度）
+        self.right_container = ttk.Frame(self.main_paned, width=280)
+        self.right_container.pack_propagate(False)  # 防止子控件改变Frame大小
         
         # 命令面板
         self.command_notebook = ttk.Notebook(self.right_container)
@@ -117,15 +116,9 @@ class SerialToolApp(tk.Tk):
         
         # 从配置加载命令面板显示状态
         self.right_panel_visible = self.config_manager.get_command_panel_visible()
-        
-        # 如果初始状态是隐藏，则应用隐藏状态
-        if not self.right_panel_visible:
-            self.after(100, self._apply_initial_panel_state)
-        
-        # 创建展开按钮frame（初始隐藏）
-        self.show_btn_frame = ttk.Frame(self.main_paned)
-        self.show_btn = ttk.Button(self.show_btn_frame, text='<<', width=3, command=self._toggle_right_panel)
-        self.show_btn.pack(fill='both', expand=True, padx=2, pady=5)
+        if self.right_panel_visible:
+            # 权重为0让它不自动扩展
+            self.main_paned.add(self.right_container, weight=0)
         
         # 快捷指令Tab
         self.quick_commands_panel = QuickCommandsPanel(
@@ -142,6 +135,9 @@ class SerialToolApp(tk.Tk):
             on_send_callback=self._send_from_history
         )
         self.command_notebook.add(self.send_history_panel, text='历史发送')
+        
+        # 绑定命令面板的Tab切换事件，用于刷新历史列表
+        self.command_notebook.bind('<<NotebookTabChanged>>', self._on_command_tab_changed)
     
     def _create_work_area(self):
         """创建工作区域（支持双栏）"""
@@ -149,24 +145,59 @@ class SerialToolApp(tk.Tk):
         self.work_paned = ttk.PanedWindow(self.work_area_container, orient='horizontal')
         self.work_paned.pack(fill='both', expand=True)
         
-        # 左栏（主栏，始终存在）
-        self.main_panel = ttk.Frame(self.work_paned)
-        self.work_paned.add(self.main_panel, weight=1)
+        # 左栏（主栏，始终存在）- 使用Canvas实现边框
+        self.main_panel_container = tk.Frame(self.work_paned)
+        self.work_paned.add(self.main_panel_container, weight=1)
+        
+        self.main_panel_border = tk.Canvas(self.main_panel_container, highlightthickness=0, bd=0)
+        self.main_panel_border.pack(fill='both', expand=True)
+        
+        self.main_panel = tk.Frame(self.main_panel_border, bg='white')
+        self.main_panel_window = self.main_panel_border.create_window(1, 1, anchor='nw', window=self.main_panel)
         
         self.work_notebook = self._create_notebook(self.main_panel)
         
-        # 右栏（副栏，根据双栏模式显示/隐藏）
-        self.secondary_panel = ttk.Frame(self.work_paned)
+        # 右栏（副栏，根据双栏模式显示/隐藏）- 使用Canvas实现边框
+        self.secondary_panel_container = tk.Frame(self.work_paned)
+        
+        self.secondary_panel_border = tk.Canvas(self.secondary_panel_container, highlightthickness=0, bd=0)
+        self.secondary_panel_border.pack(fill='both', expand=True)
+        
+        self.secondary_panel = tk.Frame(self.secondary_panel_border, bg='white')
+        self.secondary_panel_window = self.secondary_panel_border.create_window(1, 1, anchor='nw', window=self.secondary_panel)
+        
         self.work_notebook_secondary = self._create_notebook(self.secondary_panel)
+        
+        # 绑定Canvas大小变化事件
+        self.main_panel_border.bind('<Configure>', lambda e: self._resize_panel(e, self.main_panel_border, self.main_panel, self.main_panel_window))
+        self.secondary_panel_border.bind('<Configure>', lambda e: self._resize_panel(e, self.secondary_panel_border, self.secondary_panel, self.secondary_panel_window))
         
         # 根据配置决定是否显示副栏
         if self.dual_panel_mode:
-            self.work_paned.add(self.secondary_panel, weight=1)
+            self.work_paned.add(self.secondary_panel_container, weight=1)
+        
+        # 设置主栏为默认激活
+        self.active_notebook = self.work_notebook
+        self._update_panel_highlight()
+    
+    def _resize_panel(self, event, border_canvas, panel_frame, panel_window):
+        """调整面板大小以适应边框"""
+        width = event.width
+        height = event.height
+        # 设置内部frame大小为canvas大小减去边框（2px，左右各1px）
+        border_canvas.itemconfig(panel_window, width=width-2, height=height-2)
+        border_canvas.config(scrollregion=border_canvas.bbox('all'))
     
     def _create_notebook(self, parent):
         """创建一个Notebook控件"""
+        # 绑定父容器点击事件
+        parent.bind('<Button-1>', lambda e: self._on_panel_click(parent))
+        
         notebook = ttk.Notebook(parent)
-        notebook.pack(fill='both', expand=True, padx=5, pady=5)
+        notebook.pack(fill='both', expand=True)
+        
+        # 绑定notebook点击事件
+        notebook.bind('<Button-1>', lambda e: self._on_panel_click(parent))
         
         # 创建加号Tab（作为占位符）
         add_tab_placeholder = ttk.Frame(notebook)
@@ -186,6 +217,10 @@ class SerialToolApp(tk.Tk):
     def _create_initial_tab(self):
         """创建初始工作Tab"""
         self._add_work_tab()
+        
+        # 如果是双栏模式，副栏也创建一个Tab
+        if self.dual_panel_mode:
+            self._add_work_tab(notebook=self.work_notebook_secondary)
     
     def _on_double_click(self, event):
         """双击Tab关闭"""
@@ -234,10 +269,50 @@ class SerialToolApp(tk.Tk):
         except:
             pass
     
+    def _on_panel_click(self, panel):
+        """面板点击事件，用于激活面板"""
+        # 根据点击的面板确定对应的notebook
+        if panel == self.main_panel:
+            self.active_notebook = self.work_notebook
+        elif panel == self.secondary_panel:
+            self.active_notebook = self.work_notebook_secondary
+        
+        self._update_panel_highlight()
+    
+    def _on_work_tab_widget_click(self, work_tab):
+        """工作Tab内部控件点击事件"""
+        # 找到该work_tab所在的notebook
+        for notebook in [self.work_notebook, self.work_notebook_secondary]:
+            try:
+                # 检查work_tab是否在这个notebook中
+                if work_tab in notebook.winfo_children():
+                    self.active_notebook = notebook
+                    self._update_panel_highlight()
+                    return
+            except:
+                pass
+    
+    def _on_work_tab_data_sent(self):
+        """工作Tab数据发送后回调"""
+        # 刷新历史发送面板
+        self.send_history_panel.refresh()
+    
+    def _on_command_tab_changed(self, event):
+        """命令面板Tab切换事件"""
+        # 获取当前选中的Tab索引
+        current_index = self.command_notebook.index('current')
+        # 如果切换到历史发送Tab
+        if current_index == 1:  # 历史发送Tab的索引是1
+            self.send_history_panel.refresh()
+    
     def _on_tab_changed(self, event):
         """Tab切换事件处理"""
         # 确定是哪个notebook触发的事件
         notebook = event.widget
+        
+        # 更新激活的notebook
+        self.active_notebook = notebook
+        self._update_panel_highlight()
         
         # 获取当前选中的Tab索引
         current_index = notebook.index('current')
@@ -253,6 +328,23 @@ class SerialToolApp(tk.Tk):
                 # 在对应的notebook创建新Tab
                 self._add_work_tab(notebook=notebook)
     
+    def _update_panel_highlight(self):
+        """更新面板高亮显示"""
+        if not self.dual_panel_mode:
+            # 单栏模式不需要高亮
+            self.main_panel_border.config(bg='SystemButtonFace')
+            return
+        
+        # 重置所有面板边框（灰色）
+        self.main_panel_border.config(bg='gray')
+        self.secondary_panel_border.config(bg='gray')
+        
+        # 高亮激活的面板（蓝色边框）
+        if self.active_notebook == self.work_notebook:
+            self.main_panel_border.config(bg='#4A90E2')
+        elif self.active_notebook == self.work_notebook_secondary:
+            self.secondary_panel_border.config(bg='#4A90E2')
+    
     def _toggle_dual_panel(self):
         """切换双栏模式"""
         self.dual_panel_mode = self.dual_panel_var.get()
@@ -260,12 +352,15 @@ class SerialToolApp(tk.Tk):
         
         if self.dual_panel_mode:
             # 切换到双栏：显示副栏
-            self.work_paned.add(self.secondary_panel, weight=1)
+            self.work_paned.add(self.secondary_panel_container, weight=1)
             
             # 检查副栏是否有Tab，如果没有则创建一个
             secondary_tab_count = self.work_notebook_secondary.index('end') - 1  # 排除加号Tab
             if secondary_tab_count == 0:
                 self._add_work_tab(notebook=self.work_notebook_secondary)
+            
+            # 更新高亮显示
+            self._update_panel_highlight()
         else:
             # 取消双栏：隐藏副栏
             # 首先关闭副栏所有Tab的串口连接
@@ -296,27 +391,18 @@ class SerialToolApp(tk.Tk):
                     pass
             
             # 移除副栏
-            self.work_paned.remove(self.secondary_panel)
+            self.work_paned.remove(self.secondary_panel_container)
     
-    def _apply_initial_panel_state(self):
-        """应用初始面板状态"""
-        if not self.right_panel_visible:
+    def _toggle_command_panel(self):
+        """切换命令面板显示/隐藏"""
+        self.right_panel_visible = self.command_panel_var.get()
+        
+        if self.right_panel_visible:
+            # 显示命令面板，权重为0保持固定大小
+            self.main_paned.add(self.right_container, weight=0)
+        else:
             # 隐藏命令面板
             self.main_paned.remove(self.right_container)
-            self.main_paned.add(self.show_btn_frame, weight=0)
-    
-    def _toggle_right_panel(self):
-        """收起/展开右侧命令面板"""
-        if self.right_panel_visible:
-            # 收起右侧面板，显示展开按钮（<<）
-            self.main_paned.remove(self.right_container)
-            self.main_paned.add(self.show_btn_frame, weight=0)
-            self.right_panel_visible = False
-        else:
-            # 展开右侧面板，显示收起按钮（>>）
-            self.main_paned.remove(self.show_btn_frame)
-            self.main_paned.add(self.right_container, weight=1)
-            self.right_panel_visible = True
         
         # 保存状态到配置
         self.config_manager.set_command_panel_visible(self.right_panel_visible)
@@ -327,11 +413,20 @@ class SerialToolApp(tk.Tk):
         if notebook is None:
             notebook = self.work_notebook
         
-        # 第一个Tab显示为默认标题，其他显示New Tab
-        is_first_tab = (self.tab_counter == 1)
+        # 判断是主栏还是副栏
+        panel_type = 'secondary' if notebook == self.work_notebook_secondary else 'main'
+        
+        # 检查该notebook是否已有Tab（不含加号Tab）
+        current_tab_count = notebook.index('end') - 1
+        # 如果是该notebook的第一个Tab，则需要加载上次的串口
+        is_first_tab = (current_tab_count == 0)
+        
         tab_name = 'New Tab'
         
-        work_tab = WorkTab(notebook, self.config_manager, tab_name, is_first_tab)
+        work_tab = WorkTab(notebook, self.config_manager, tab_name, is_first_tab, 
+                          on_widget_click=self._on_work_tab_widget_click,
+                          on_data_sent=self._on_work_tab_data_sent,
+                          panel_type=panel_type)
         
         # 在加号Tab之前插入新Tab
         insert_index = notebook.index('end') - 1
@@ -396,30 +491,63 @@ class SerialToolApp(tk.Tk):
         notebook.forget(tab_index)
     
     def _get_current_work_tab(self):
-        """获取当前工作Tab"""
+        """获取当前工作Tab（双栏模式下返回激活notebook的当前Tab）"""
         try:
-            index = self.work_notebook.index('current')
-            # 确保不是加号Tab
-            if index < len(self.work_tabs):
-                return self.work_tabs[index]
+            # 在双栏模式下，使用激活的notebook
+            notebook = self.active_notebook if self.active_notebook else self.work_notebook
+            
+            # 获取当前选中的Tab
+            current_index = notebook.index('current')
+            
+            # 获取该Tab的widget
+            if current_index < notebook.index('end') - 1:  # 不是加号Tab
+                tab_widget = notebook.nametowidget(notebook.tabs()[current_index])
+                if tab_widget in self.work_tabs:
+                    return tab_widget
+            
             return None
         except:
             return None
     
-    def _send_quick_command(self, command):
-        """发送快捷指令"""
+    def _send_quick_command(self, command, mode):
+        """
+        发送快捷指令
+        
+        Args:
+            command: 指令内容
+            mode: 发送模式(TEXT/HEX)
+        """
         work_tab = self._get_current_work_tab()
         if work_tab:
+            # 设置发送文本
             work_tab.send_text.delete('1.0', 'end')
             work_tab.send_text.insert('1.0', command)
-            work_tab._send_data()
+            
+            # 根据指令的模式发送（不看当前Tab的发送模式）
+            work_tab._send_data(override_mode=mode)
+            
+            # 立即刷新历史发送面板
+            self.send_history_panel.refresh()
     
-    def _send_from_history(self, data):
-        """从历史发送"""
+    def _send_from_history(self, data, mode):
+        """
+        从历史发送
+        
+        Args:
+            data: 发送数据
+            mode: 发送模式(TEXT/HEX)
+        """
         work_tab = self._get_current_work_tab()
         if work_tab:
+            # 设置发送文本
             work_tab.send_text.delete('1.0', 'end')
             work_tab.send_text.insert('1.0', data)
+            
+            # 直接按历史记录的模式发送
+            work_tab._send_data(override_mode=mode)
+            
+            # 立即刷新历史发送面板
+            self.send_history_panel.refresh()
     
     def _export_config(self):
         """导出配置"""

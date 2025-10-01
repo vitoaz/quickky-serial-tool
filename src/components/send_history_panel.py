@@ -6,7 +6,8 @@ Email: vitoyuz@foxmail.com
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
+from datetime import datetime
 
 class SendHistoryPanel(ttk.Frame):
     """历史发送面板"""
@@ -18,7 +19,7 @@ class SendHistoryPanel(ttk.Frame):
         Args:
             parent: 父控件
             config_manager: 配置管理器
-            on_send_callback: 发送回调函数
+            on_send_callback: 发送回调函数(data, mode)
         """
         super().__init__(parent)
         self.config_manager = config_manager
@@ -29,79 +30,89 @@ class SendHistoryPanel(ttk.Frame):
     
     def _create_widgets(self):
         """创建控件"""
-        # 工具栏
-        toolbar = ttk.Frame(self)
-        toolbar.pack(fill='x', padx=5, pady=5)
-        
-        ttk.Label(toolbar, text='搜索:').pack(side='left', padx=5)
-        
-        self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(toolbar, textvariable=self.search_var, width=20)
-        self.search_entry.pack(side='left', padx=5)
-        self.search_entry.bind('<KeyRelease>', self._on_search)
-        
-        ttk.Button(toolbar, text='清空历史', command=self._clear_history, width=10).pack(side='right', padx=5)
-        
         # 列表
         list_frame = ttk.Frame(self)
         list_frame.pack(fill='both', expand=True, padx=5, pady=5)
         
-        # 创建Listbox
-        scrollbar = ttk.Scrollbar(list_frame, orient='vertical')
-        self.listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.listbox.yview)
+        # 创建Treeview（显示时间、模式、数据）
+        self.tree = ttk.Treeview(list_frame, columns=('time', 'mode', 'data'), show='headings', height=15)
+        self.tree.heading('time', text='时间')
+        self.tree.heading('mode', text='模式')
+        self.tree.heading('data', text='数据')
+        self.tree.column('time', width=125, minwidth=100)
+        self.tree.column('mode', width=32, minwidth=32)
+        self.tree.column('data', width=80, minwidth=60)
         
-        self.listbox.pack(side='left', fill='both', expand=True)
+        # 设置字体大小
+        style = ttk.Style()
+        style.configure('Treeview', font=('', 8))
+        style.configure('Treeview.Heading', font=('', 8))
+        
+        scrollbar = ttk.Scrollbar(list_frame, orient='vertical', command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
         # 双击发送
-        self.listbox.bind('<Double-Button-1>', self._on_double_click)
+        self.tree.bind('<Double-Button-1>', self._on_double_click)
+        
+        # 右键菜单
+        self.tree.bind('<Button-3>', self._show_menu)
     
-    def _load_history(self, filter_text=''):
+    def _load_history(self):
         """加载发送历史"""
-        self.listbox.delete(0, 'end')
+        self.tree.delete(*self.tree.get_children())
         history = self.config_manager.get_send_history()
         
         for item in history:
-            if filter_text.lower() in item.lower():
-                # 限制显示长度
-                display_text = item.replace('\n', '\\n')
-                if len(display_text) > 60:
-                    display_text = display_text[:60] + '...'
-                self.listbox.insert('end', display_text)
+            # 兼容旧格式（字符串）和新格式（字典）
+            if isinstance(item, str):
+                # 旧格式：只有数据
+                time_str = ''
+                mode = 'TEXT'
+                data = item
+            else:
+                # 新格式：包含时间、模式、数据
+                time_str = item.get('time', '')
+                mode = item.get('mode', 'TEXT')
+                data = item.get('data', '')
+            
+            # 限制显示长度
+            display_data = data.replace('\n', '\\n')
+            if len(display_data) > 50:
+                display_data = display_data[:50] + '...'
+            
+            self.tree.insert('', 'end', values=(time_str, mode, display_data), 
+                           tags=(mode, data))  # 将完整数据保存在tags中
     
-    def _on_search(self, event=None):
-        """搜索"""
-        filter_text = self.search_var.get()
-        self._load_history(filter_text)
+    def _show_menu(self, event):
+        """显示右键菜单"""
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label='清空历史', command=self._clear_history)
+        menu.post(event.x_root, event.y_root)
     
     def _clear_history(self):
         """清空历史"""
-        from tkinter import messagebox
         if messagebox.askyesno('确认', '确定要清空所有发送历史吗？'):
-            self.config_manager.config['send_history'] = []
-            self.config_manager.save_config()
+            self.config_manager.clear_send_history()
             self._load_history()
     
     def _on_double_click(self, event):
         """双击发送"""
-        selection = self.listbox.curselection()
-        if selection:
-            index = selection[0]
-            history = self.config_manager.get_send_history()
+        selection = self.tree.selection()
+        if selection and self.on_send_callback:
+            item = self.tree.item(selection[0])
+            values = item['values']
+            tags = item['tags']
             
-            # 考虑搜索过滤
-            filter_text = self.search_var.get()
-            if filter_text:
-                filtered_history = [item for item in history if filter_text.lower() in item.lower()]
-                data = filtered_history[index]
-            else:
-                data = history[index]
+            mode = values[1]      # 模式在第2列
+            data = tags[1]        # 完整数据保存在tags中
             
-            if self.on_send_callback:
-                self.on_send_callback(data)
+            # 传递数据和模式给回调
+            self.on_send_callback(data, mode)
     
     def refresh(self):
         """刷新历史列表"""
-        self._load_history(self.search_var.get())
+        self._load_history()
 
