@@ -41,7 +41,11 @@ class ConfigManager:
             "quick_command_groups": [],  # 快捷指令分组
             "send_history": [],
             "command_panel_visible": True,  # 命令面板显示状态
-            "dual_panel_mode": False  # 双栏模式
+            "dual_panel_mode": False,  # 双栏模式
+            "global_settings": {
+                "receive_buffer_size": 10000,  # 数据接收缓冲区大小
+                "send_history_max": 200  # 发送历史最大条数
+            }
         }
     
     def _get_default_port_config(self):
@@ -222,9 +226,13 @@ class ConfigManager:
         }
         
         self.config['send_history'].insert(0, history_item)
-        # 限制历史记录数量为200条
-        if len(self.config['send_history']) > 200:
-            self.config['send_history'] = self.config['send_history'][:200]
+        
+        # 使用全局设置的历史记录数量限制
+        global_settings = self.get_global_settings()
+        max_history = global_settings.get('send_history_max', 200)
+        
+        if len(self.config['send_history']) > max_history:
+            self.config['send_history'] = self.config['send_history'][:max_history]
         self.save_config()
     
     def get_send_history(self):
@@ -264,5 +272,18 @@ class ConfigManager:
     def set_dual_panel_mode(self, enabled):
         """设置双栏模式状态"""
         self.config['dual_panel_mode'] = enabled
+        self.save_config()
+    
+    def get_global_settings(self):
+        """获取全局设置"""
+        default_settings = {
+            "receive_buffer_size": 10000,
+            "send_history_max": 200
+        }
+        return self.config.get('global_settings', default_settings)
+    
+    def set_global_settings(self, settings):
+        """设置全局设置"""
+        self.config['global_settings'] = settings
         self.save_config()
 

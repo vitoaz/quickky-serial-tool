@@ -15,9 +15,11 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pages.work_tab import WorkTab
+from pages.settings_dialog import SettingsDialog
 from components.quick_commands_panel import QuickCommandsPanel
 from components.send_history_panel import SendHistoryPanel
 from utils.config_manager import ConfigManager
+from utils.file_utils import resource_path
 
 # 导入版本信息
 try:
@@ -35,23 +37,17 @@ class SerialToolApp(tk.Tk):
     def __init__(self):
         super().__init__()
         
-        self.title(f'QSerial v{VERSION}')
+        self.title(f'QSerial v{VERSION} - by Aaz')
         self.geometry('1024x600')
         
         # 设置窗口图标
         try:
-            # 获取应用程序的基础路径
-            if getattr(sys, 'frozen', False):
-                # 打包后的exe环境
-                base_path = os.path.dirname(sys.executable)
-            else:
-                # 开发环境
-                base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            
-            icon_path = os.path.join(base_path, 'icon.png')
-            if os.path.exists(icon_path):
-                icon_image = tk.PhotoImage(file=icon_path)
-                self.iconphoto(True, icon_image)
+            # 使用资源文件工具获取图标路径
+            png_path = resource_path('icon.png')
+            if os.path.exists(png_path):
+                png_image = tk.PhotoImage(file=png_path)
+                self.wm_iconphoto(True, png_image)
+                
         except Exception as e:
             print(f'加载图标失败: {e}')
         
@@ -82,6 +78,8 @@ class SerialToolApp(tk.Tk):
         menubar.add_cascade(label='文件', menu=file_menu)
         file_menu.add_command(label='导出配置', command=self._export_config)
         file_menu.add_command(label='导入配置', command=self._import_config)
+        file_menu.add_separator()
+        file_menu.add_command(label='设置', command=self._show_settings)
         file_menu.add_separator()
         file_menu.add_command(label='退出', command=self._on_closing)
         
@@ -584,6 +582,10 @@ class SerialToolApp(tk.Tk):
             else:
                 messagebox.showerror('错误', '配置导入失败！')
     
+    def _show_settings(self):
+        """显示设置"""
+        SettingsDialog(self, self.config_manager)
+    
     def _show_about(self):
         """显示关于"""
         about_text = f"""QSerial (Quickky Serial Tool)
@@ -594,7 +596,11 @@ class SerialToolApp(tk.Tk):
 作者: Aaz
 邮箱: vitoyuz@foxmail.com
 
-一个功能强大的串口调试工具"""
+一个功能强大的串口调试工具
+
+开源地址:
+Gitee: https://gitee.com/vitoaaazzz/quickky-serial-tool
+GitHub: https://github.com/vitoaz/quickky-serial-tool"""
         
         messagebox.showinfo('关于', about_text)
     

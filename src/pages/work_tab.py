@@ -445,6 +445,18 @@ class WorkTab(ttk.Frame):
         
         self.receive_text.insert('end', text, tag_name)
         
+        # 检查buffer大小限制
+        global_settings = self.config_manager.get_global_settings()
+        max_lines = global_settings.get('receive_buffer_size', 10000)
+        
+        # 获取当前行数
+        current_lines = int(self.receive_text.index('end-1c').split('.')[0])
+        
+        # 如果超过限制，删除前面的行
+        if current_lines > max_lines:
+            lines_to_delete = current_lines - max_lines
+            self.receive_text.delete('1.0', f'{lines_to_delete + 1}.0')
+        
         # 根据自动滚屏设置决定是否滚动
         settings = self.receive_settings.get_settings()
         if settings.get('auto_scroll', True):
