@@ -41,6 +41,7 @@ class WorkTab(ttk.Frame):
         self.serial_manager = SerialManager()
         self.log_file = None
         self.loop_send_timer = None
+        self.theme_manager = None  # 主题管理器将在apply_theme中设置
         
         # 延迟创建控件，减少Tab切换时的刷新
         self.after(1, self._init_ui)
@@ -96,8 +97,18 @@ class WorkTab(ttk.Frame):
         receive_frame = ttk.LabelFrame(right_pane, text='数据接收', padding=5)
         receive_frame.pack(fill='both', expand=True, pady=(0, 5))
         
-        self.receive_text = scrolledtext.ScrolledText(receive_frame, height=15, state='disabled')
-        self.receive_text.pack(fill='both', expand=True)
+        # 使用自定义滚动条的Text控件替代ScrolledText
+        text_container = ttk.Frame(receive_frame)
+        text_container.pack(fill='both', expand=True)
+        
+        self.receive_scrollbar = ttk.Scrollbar(text_container, orient='vertical')
+        self.receive_scrollbar.pack(side='right', fill='y')
+        
+        self.receive_text = tk.Text(text_container, height=15, state='disabled',
+                                   relief='flat', borderwidth=0, highlightthickness=0,
+                                   yscrollcommand=self.receive_scrollbar.set)
+        self.receive_text.pack(side='left', fill='both', expand=True)
+        self.receive_scrollbar.config(command=self.receive_text.yview)
         
         # 绑定接收区点击事件
         self.receive_text.bind('<Button-1>', self._on_widget_clicked)
@@ -106,7 +117,8 @@ class WorkTab(ttk.Frame):
         send_frame = ttk.LabelFrame(right_pane, text='数据发送', padding=5)
         send_frame.pack(fill='both')
         
-        self.send_text = tk.Text(send_frame, height=5)
+        self.send_text = tk.Text(send_frame, height=5,
+                                relief='flat', borderwidth=0, highlightthickness=0)
         self.send_text.pack(fill='both', expand=True)
         
         # 绑定发送区点击事件
@@ -119,11 +131,11 @@ class WorkTab(ttk.Frame):
         send_btn_frame.pack(fill='x', pady=(5, 0))
         
         # 清除发送按钮（Label样式）
-        clear_send_label = tk.Label(send_btn_frame, text='清除发送', fg='blue', cursor='hand2')
-        clear_send_label.pack(side='left')
-        clear_send_label.bind('<Button-1>', self._clear_send)
-        clear_send_label.bind('<Enter>', lambda e: clear_send_label.config(font=('', 9, 'underline')))
-        clear_send_label.bind('<Leave>', lambda e: clear_send_label.config(font=('', 9)))
+        self.clear_send_label = tk.Label(send_btn_frame, text='清除发送', fg='blue', cursor='hand2', font=('', 9))
+        self.clear_send_label.pack(side='left')
+        self.clear_send_label.bind('<Button-1>', self._clear_send)
+        self.clear_send_label.bind('<Enter>', lambda e: self.clear_send_label.config(font=('', 9, 'underline')))
+        self.clear_send_label.bind('<Leave>', lambda e: self.clear_send_label.config(font=('', 9)))
         
         # 错误提示Label
         self.send_error_label = tk.Label(send_btn_frame, text='', fg='red', font=('', 9))
@@ -260,7 +272,7 @@ class WorkTab(ttk.Frame):
         """连接串口"""
         port = self.serial_settings.get_current_port()
         if not port:
-            self._append_receive('[错误] 请选择串口\n', 'red')
+            self._append_receive('[错误] 请选择串口\n', 'error')
             return
         
         settings = self.serial_settings.get_settings()
@@ -275,12 +287,12 @@ class WorkTab(ttk.Frame):
         ):
             self.connect_btn.config(text='关闭串口')
             self.send_btn.config(state='normal')
-            self._append_receive(f'[信息] 串口已打开: {port}\n', 'green')
+            self._append_receive(f'[信息] 串口已打开: {port}\n', 'success')
             
             # 禁用串口设置
             self.serial_settings.set_enabled(False)
         else:
-            self._append_receive(f'[错误] 打开串口失败: {port}\n', 'red')
+            self._append_receive(f'[错误] 打开串口失败: {port}\n', 'error')
     
     def _disconnect(self):
         """断开串口"""
@@ -288,7 +300,7 @@ class WorkTab(ttk.Frame):
         self.serial_manager.close()
         self.connect_btn.config(text='打开串口')
         self.send_btn.config(state='disabled')
-        self._append_receive('[信息] 串口已关闭\n', 'blue')
+        self._append_receive('[信息] 串口已关闭\n', 'info')
         
         # 启用串口设置
         self.serial_settings.set_enabled(True)
@@ -333,7 +345,7 @@ class WorkTab(ttk.Frame):
     
     def _on_disconnected(self):
         """串口断开"""
-        self.after(0, lambda: self._append_receive('[警告] 串口已断开\n', 'orange'))
+        self.after(0, lambda: self._append_receive('[警告] 串口已断开\n', 'warning'))
     
     def _toggle_send(self):
         """切换发送/取消循环发送"""
@@ -388,7 +400,7 @@ class WorkTab(ttk.Frame):
                 self.send_btn.config(text='取消发送')
                 self._start_loop_send()
         else:
-            self._append_receive('[错误] 发送失败\n', 'red')
+            self._append_receive('[错误] 发送失败\n', 'error')
     
     def _validate_hex_format(self, data):
         """验证HEX格式是否正确"""
@@ -435,13 +447,38 @@ class WorkTab(ttk.Frame):
         """清除发送区"""
         self.send_text.delete('1.0', 'end')
     
-    def _append_receive(self, text, color='black'):
-        """追加接收数据"""
+    def _append_receive(self, text, level='normal'):
+        """
+        追加接收数据
+        
+        Args:
+            text: 文本内容
+            level: 日志级别 ('normal', 'info', 'error', 'success', 'warning')
+        """
         self.receive_text.config(state='normal')
         
+        # 根据主题和级别获取对应的颜色
+        if self.theme_manager and level != 'normal':
+            colors = self.theme_manager.get_theme_colors()
+            # 映射日志级别到主题颜色
+            level_color_map = {
+                'info': colors.get('log_info_color', '#0066CC'),
+                'error': colors.get('log_error_color', '#D32F2F'),
+                'success': colors.get('log_success_color', '#388E3C'),
+                'warning': colors.get('log_error_color', '#D32F2F'),  # 警告用错误色
+            }
+            actual_color = level_color_map.get(level, colors.get('text_fg', '#000000'))
+        else:
+            # 普通文本使用当前主题的文本颜色
+            if self.theme_manager:
+                colors = self.theme_manager.get_theme_colors()
+                actual_color = colors.get('text_fg', '#000000')
+            else:
+                actual_color = 'black'
+        
         # 创建tag
-        tag_name = f'color_{color}'
-        self.receive_text.tag_config(tag_name, foreground=color)
+        tag_name = f'level_{level}'
+        self.receive_text.tag_config(tag_name, foreground=actual_color)
         
         self.receive_text.insert('end', text, tag_name)
         
@@ -480,10 +517,10 @@ class WorkTab(ttk.Frame):
         if file_path:
             try:
                 self.log_file = open(file_path, 'w', encoding='utf-8')
-                self._append_receive(f'[信息] 日志文件: {file_path}\n', 'blue')
+                self._append_receive(f'[信息] 日志文件: {file_path}\n', 'info')
                 return True
             except Exception as e:
-                self._append_receive(f'[错误] 创建日志文件失败: {e}\n', 'red')
+                self._append_receive(f'[错误] 创建日志文件失败: {e}\n', 'error')
                 return False
         return False
     
@@ -498,4 +535,70 @@ class WorkTab(ttk.Frame):
         self.serial_manager.close()
         if self.log_file:
             self.log_file.close()
+    
+    def apply_theme(self, theme_manager, font_size=9):
+        """
+        应用主题到工作Tab
+        
+        Args:
+            theme_manager: 主题管理器
+            font_size: 字体大小
+        """
+        self.theme_manager = theme_manager
+        colors = theme_manager.get_theme_colors()
+        
+        if not colors:
+            return
+        
+        try:
+            # 应用到主Frame
+            self.configure(style='WorkTab.TFrame')
+            
+            # 应用到接收区
+            if hasattr(self, 'receive_text'):
+                self.receive_text.configure(
+                    bg=colors.get('text_bg', '#FFFFFF'),
+                    fg=colors.get('text_fg', '#000000'),
+                    selectbackground=colors.get('selectbackground', '#0078D7'),
+                    selectforeground=colors.get('selectforeground', '#FFFFFF'),
+                    insertbackground=colors.get('text_fg', '#000000'),
+                    font=('Consolas', font_size)
+                )
+            
+            # 应用到发送区
+            if hasattr(self, 'send_text'):
+                self.send_text.configure(
+                    bg=colors.get('text_bg', '#FFFFFF'),
+                    fg=colors.get('text_fg', '#000000'),
+                    selectbackground=colors.get('selectbackground', '#0078D7'),
+                    selectforeground=colors.get('selectforeground', '#FFFFFF'),
+                    insertbackground=colors.get('text_fg', '#000000'),
+                    font=('Consolas', font_size)
+                )
+            
+            # 应用到设置面板
+            if hasattr(self, 'serial_settings') and hasattr(self.serial_settings, 'apply_theme'):
+                self.serial_settings.apply_theme(theme_manager)
+            
+            if hasattr(self, 'receive_settings') and hasattr(self.receive_settings, 'apply_theme'):
+                self.receive_settings.apply_theme(theme_manager)
+            
+            if hasattr(self, 'send_settings') and hasattr(self.send_settings, 'apply_theme'):
+                self.send_settings.apply_theme(theme_manager)
+            
+            # 应用到其他tk控件
+            if hasattr(self, 'clear_send_label'):
+                self.clear_send_label.configure(
+                    bg=colors.get('frame_bg', '#F5F5F5'),
+                    fg=colors.get('link_color', '#0066CC')
+                )
+            
+            if hasattr(self, 'send_error_label'):
+                self.send_error_label.configure(
+                    bg=colors.get('frame_bg', '#F5F5F5'),
+                    fg=colors.get('log_error_color', '#D32F2F')
+                )
+        
+        except Exception as e:
+            print(f"应用主题到WorkTab失败: {e}")
 

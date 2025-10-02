@@ -1,0 +1,32 @@
+{
+  "name": "Light",
+  "description": "明亮主题",
+  "colors": {
+    "background": "#FFFFFF",
+    "foreground": "#000000",
+    "text_bg": "#FFFFFF",
+    "text_fg": "#000000",
+    "button_bg": "#F0F0F0",
+    "button_fg": "#000000",
+    "frame_bg": "#F5F5F5",
+    "labelframe_bg": "#F5F5F5",
+    "entry_bg": "#FFFFFF",
+    "entry_fg": "#000000",
+    "selectbackground": "#0078D7",
+    "selectforeground": "#FFFFFF",
+    "border": "#D0D0D0",
+    "scrollbar_bg": "#E0E0E0",
+    "scrollbar_fg": "#A0A0A0",
+    "terminal_bg": "#FFFFFF",
+    "terminal_fg": "#000000",
+    "active_tab": "#E0E0E0",
+    "inactive_tab": "#F5F5F5",
+    "checkbox_selected": "#0078D7",
+    "link_color": "#0066CC",
+    "log_info_color": "#0066CC",
+    "log_error_color": "#D32F2F",
+    "log_success_color": "#388E3C",
+    "active_border": "#4A90E2"
+  }
+}
+

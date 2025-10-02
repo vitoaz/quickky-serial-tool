@@ -121,4 +121,10 @@ class SendSettingsPanel(ttk.LabelFrame):
             self.loop_period_entry.config(state='normal')
         else:
             self.loop_period_entry.config(state='disabled')
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        # ttk控件的样式已经通过theme_manager.apply_ttk_theme()统一设置
+        # 这里保留接口，用于未来可能的扩展
+        pass
 

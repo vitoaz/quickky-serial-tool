@@ -42,6 +42,7 @@ python3 -m PyInstaller --onefile --windowed ^
   --icon icon.ico ^
   --add-data "version.py;." ^
   --add-data "icon.png;." ^
+  --add-data "themes;themes" ^
   --paths src ^
   --hidden-import pages.work_tab ^
   --hidden-import components.serial_settings_panel ^
@@ -51,6 +52,7 @@ python3 -m PyInstaller --onefile --windowed ^
   --hidden-import components.send_history_panel ^
   --hidden-import utils.config_manager ^
   --hidden-import utils.serial_manager ^
+  --hidden-import utils.theme_manager ^
   src/main/app.py
 
 if errorlevel 1 (
