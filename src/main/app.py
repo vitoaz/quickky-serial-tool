@@ -14,11 +14,11 @@ import os
 # 添加src目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pages.work_tab import WorkTab
 from pages.settings_dialog import SettingsDialog
 from components.quick_commands_panel import QuickCommandsPanel
 from components.send_history_panel import SendHistoryPanel
 from components.custom_menubar import CustomMenuBar
+from components.work_panel import WorkPanel
 from utils.config_manager import ConfigManager
 from utils.file_utils import resource_path, get_base_path
 from utils.theme_manager import ThemeManager
@@ -60,13 +60,6 @@ class SerialToolApp(tk.Tk):
         # 主题管理器（传入self作为root窗口）
         self.theme_manager = ThemeManager(self)
         
-        # 工作Tab列表
-        self.work_tabs = []
-        self.tab_counter = 1
-        
-        # 当前激活的notebook（用于双栏模式）
-        self.active_notebook = None
-        
         self._create_widgets()
         
         # 创建自定义菜单栏
@@ -74,8 +67,6 @@ class SerialToolApp(tk.Tk):
         
         # 在创建Tab之前先加载主题
         self._load_and_apply_theme()
-        
-        self._create_initial_tab()
         
         # 再次应用主题确保所有控件都正确
         self.after(100, self._apply_theme_to_all_widgets)
@@ -143,13 +134,14 @@ class SerialToolApp(tk.Tk):
         # 创建主容器的最小尺寸管理器
         self.main_minsize_manager = ttk_panedwindow_minsize(self.main_paned, 'horizontal')
         
-        # 左侧工作面板（支持双栏）
-        self.work_area_container = ttk.Frame(self.main_paned)
-        self.main_minsize_manager.add_panel(self.work_area_container, min_size=600, weight=4)
-        
-        # 创建工作区域（单栏或双栏）
-        self.dual_panel_mode = self.config_manager.get_dual_panel_mode()
-        self._create_work_area()
+        # 创建工作面板
+        self.work_panel = WorkPanel(
+            self.main_paned,
+            self.config_manager,
+            self.theme_manager,
+            on_tab_data_sent=self._on_work_tab_data_sent
+        )
+        self.main_minsize_manager.add_panel(self.work_panel, min_size=600, weight=4)
         
         # 右侧命令面板容器（设置固定宽度）
         self.right_container = ttk.Frame(self.main_paned, width=280)
@@ -184,151 +176,6 @@ class SerialToolApp(tk.Tk):
         # 绑定命令面板的Tab切换事件，用于刷新历史列表
         self.command_notebook.bind('<<NotebookTabChanged>>', self._on_command_tab_changed)
     
-    def _create_work_area(self):
-        """创建工作区域（支持双栏）"""
-        # 创建工作区域的PanedWindow（始终存在）
-        self.work_paned = ttk.PanedWindow(self.work_area_container, orient='horizontal')
-        self.work_paned.pack(fill='both', expand=True)
-        
-        # 创建工作区域的最小尺寸管理器
-        self.work_minsize_manager = ttk_panedwindow_minsize(self.work_paned, 'horizontal')
-        
-        # 左栏（主栏，始终存在）- 使用Frame实现顶部边框
-        self.main_panel_container = tk.Frame(self.work_paned)
-        self.work_minsize_manager.add_panel(self.main_panel_container, min_size=400, weight=1)
-        
-        # 顶部边框（4px）- 未激活时透明
-        self.main_panel_top_border = tk.Frame(self.main_panel_container, height=4)
-        self.main_panel_top_border.pack(fill='x', side='top')
-        
-        self.main_panel = tk.Frame(self.main_panel_container, bg='white')
-        self.main_panel.pack(fill='both', expand=True)
-        
-        self.work_notebook = self._create_notebook(self.main_panel)
-        
-        # 右栏（副栏，根据双栏模式显示/隐藏）- 使用Frame实现顶部边框
-        self.secondary_panel_container = tk.Frame(self.work_paned)
-        
-        # 顶部边框（4px）- 未激活时透明
-        self.secondary_panel_top_border = tk.Frame(self.secondary_panel_container, height=4)
-        self.secondary_panel_top_border.pack(fill='x', side='top')
-        
-        self.secondary_panel = tk.Frame(self.secondary_panel_container, bg='white')
-        self.secondary_panel.pack(fill='both', expand=True)
-        
-        self.work_notebook_secondary = self._create_notebook(self.secondary_panel)
-        
-        # 根据配置决定是否显示副栏
-        if self.dual_panel_mode:
-            self.work_minsize_manager.add_panel(self.secondary_panel_container, min_size=400, weight=1)
-        
-        # 设置主栏为默认激活
-        self.active_notebook = self.work_notebook
-        self._update_panel_highlight()
-    
-    def _create_notebook(self, parent):
-        """创建一个Notebook控件"""
-        # 绑定父容器点击事件
-        parent.bind('<Button-1>', lambda e: self._on_panel_click(parent))
-        
-        notebook = ttk.Notebook(parent)
-        notebook.pack(fill='both', expand=True)
-        
-        # 绑定notebook点击事件
-        notebook.bind('<Button-1>', lambda e: self._on_panel_click(parent))
-        
-        # 创建加号Tab（作为占位符）
-        add_tab_placeholder = ttk.Frame(notebook)
-        notebook.add(add_tab_placeholder, text='+')
-        
-        # 绑定Tab切换事件
-        notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
-        # 绑定双击Tab关闭
-        notebook.bind('<Double-Button-1>', self._on_double_click)
-        # 绑定鼠标中键点击关闭Tab
-        notebook.bind('<Button-2>', self._on_middle_click)
-        # 绑定右键菜单
-        notebook.bind('<Button-3>', self._on_right_click)
-        
-        return notebook
-    
-    def _create_initial_tab(self):
-        """创建初始工作Tab"""
-        self._add_work_tab()
-        
-        # 如果是双栏模式，副栏也创建一个Tab
-        if self.dual_panel_mode:
-            self._add_work_tab(notebook=self.work_notebook_secondary)
-    
-    def _on_double_click(self, event):
-        """双击Tab关闭"""
-        try:
-            # 获取触发事件的notebook
-            notebook = event.widget
-            clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
-            if clicked_tab != '':
-                index = int(clicked_tab)
-                # 获取实际的Tab widget
-                tab_widget = notebook.nametowidget(notebook.tabs()[index])
-                # 关闭Tab
-                self._close_tab_widget(tab_widget, notebook)
-        except:
-            pass
-    
-    def _on_middle_click(self, event):
-        """鼠标中键点击关闭Tab"""
-        try:
-            # 获取触发事件的notebook
-            notebook = event.widget
-            clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
-            if clicked_tab != '':
-                index = int(clicked_tab)
-                # 获取实际的Tab widget
-                tab_widget = notebook.nametowidget(notebook.tabs()[index])
-                # 关闭Tab
-                self._close_tab_widget(tab_widget, notebook)
-        except:
-            pass
-    
-    def _on_right_click(self, event):
-        """右键菜单"""
-        try:
-            # 获取触发事件的notebook
-            notebook = event.widget
-            clicked_tab = notebook.tk.call(notebook._w, "identify", "tab", event.x, event.y)
-            if clicked_tab != '':
-                index = int(clicked_tab)
-                # 获取实际的Tab widget
-                tab_widget = notebook.nametowidget(notebook.tabs()[index])
-                # 显示菜单
-                menu = tk.Menu(self, tearoff=0)
-                menu.add_command(label='关闭', command=lambda: self._close_tab_widget(tab_widget, notebook))
-                menu.post(event.x_root, event.y_root)
-        except:
-            pass
-    
-    def _on_panel_click(self, panel):
-        """面板点击事件，用于激活面板"""
-        # 根据点击的面板确定对应的notebook
-        if panel == self.main_panel:
-            self.active_notebook = self.work_notebook
-        elif panel == self.secondary_panel:
-            self.active_notebook = self.work_notebook_secondary
-        
-        self._update_panel_highlight()
-    
-    def _on_work_tab_widget_click(self, work_tab):
-        """工作Tab内部控件点击事件"""
-        # 找到该work_tab所在的notebook
-        for notebook in [self.work_notebook, self.work_notebook_secondary]:
-            try:
-                # 检查work_tab是否在这个notebook中
-                if work_tab in notebook.winfo_children():
-                    self.active_notebook = notebook
-                    self._update_panel_highlight()
-                    return
-            except:
-                pass
     
     def _on_work_tab_data_sent(self):
         """工作Tab数据发送后回调"""
@@ -343,107 +190,13 @@ class SerialToolApp(tk.Tk):
         if current_index == 1:  # 历史发送Tab的索引是1
             self.send_history_panel.refresh()
     
-    def _on_tab_changed(self, event):
-        """Tab切换事件处理"""
-        # 确定是哪个notebook触发的事件
-        notebook = event.widget
-        
-        # 更新激活的notebook
-        self.active_notebook = notebook
-        self._update_panel_highlight()
-        
-        # 获取当前选中的Tab索引
-        current_index = notebook.index('current')
-        
-        # 如果点击的是加号Tab（最后一个）
-        if current_index == notebook.index('end') - 1:
-            # 计算该notebook当前有多少个普通Tab（不含加号）
-            notebook_tab_count = notebook.index('end') - 1
-            
-            # 只有在该notebook已经有Tab的情况下才允许创建新Tab
-            # 这样可以防止关闭最后一个Tab后自动创建新Tab
-            if notebook_tab_count > 0:
-                # 在对应的notebook创建新Tab
-                self._add_work_tab(notebook=notebook)
-    
-    def _update_panel_highlight(self):
-        """更新面板高亮显示 - 只有激活时显示顶部4px边框"""
-        # 获取主题颜色
-        if hasattr(self, 'theme_manager'):
-            colors = self.theme_manager.get_theme_colors()
-            bg_color = colors.get('labelframe_bg', '#F5F5F5')  # 使用labelframe背景色
-            active_color = colors.get('active_border', '#4A90E2')
-        else:
-            bg_color = '#F5F5F5'
-            active_color = '#4A90E2'
-        
-        if not self.dual_panel_mode:
-            # 单栏模式：边框使用背景色（不显示）
-            if hasattr(self, 'main_panel_top_border'):
-                self.main_panel_top_border.config(bg=bg_color)
-            return
-        
-        # 双栏模式：重置所有顶部边框为背景色（不显示）
-        if hasattr(self, 'main_panel_top_border'):
-            self.main_panel_top_border.config(bg=bg_color)
-        if hasattr(self, 'secondary_panel_top_border'):
-            self.secondary_panel_top_border.config(bg=bg_color)
-        
-        # 激活面板的顶部边框使用激活色
-        if self.active_notebook == self.work_notebook:
-            if hasattr(self, 'main_panel_top_border'):
-                self.main_panel_top_border.config(bg=active_color)
-        elif self.active_notebook == self.work_notebook_secondary:
-            if hasattr(self, 'secondary_panel_top_border'):
-                self.secondary_panel_top_border.config(bg=active_color)
-    
     def _toggle_dual_panel(self):
         """切换双栏模式"""
-        self.dual_panel_mode = self.dual_panel_var.get()
-        self.config_manager.set_dual_panel_mode(self.dual_panel_mode)
+        dual_panel_mode = self.dual_panel_var.get()
+        self.config_manager.set_dual_panel_mode(dual_panel_mode)
         
-        if self.dual_panel_mode:
-            # 切换到双栏：显示副栏
-            self.work_minsize_manager.add_panel(self.secondary_panel_container, min_size=400, weight=1)
-            
-            # 检查副栏是否有Tab，如果没有则创建一个
-            secondary_tab_count = self.work_notebook_secondary.index('end') - 1  # 排除加号Tab
-            if secondary_tab_count == 0:
-                self._add_work_tab(notebook=self.work_notebook_secondary)
-            
-            # 更新高亮显示
-            self._update_panel_highlight()
-        else:
-            # 取消双栏：隐藏副栏
-            # 首先关闭副栏所有Tab的串口连接
-            secondary_tab_count = self.work_notebook_secondary.index('end') - 1
-            tabs_to_remove = []
-            
-            for i in range(secondary_tab_count):
-                try:
-                    tab = self.work_notebook_secondary.nametowidget(self.work_notebook_secondary.tabs()[i])
-                    if tab in self.work_tabs:
-                        # 关闭串口连接
-                        if hasattr(tab, 'serial_manager') and tab.serial_manager.is_open():
-                            tab._disconnect()
-                        tabs_to_remove.append(tab)
-                except:
-                    pass
-            
-            # 从work_tabs列表中移除副栏的Tab
-            for tab in tabs_to_remove:
-                if tab in self.work_tabs:
-                    self.work_tabs.remove(tab)
-            
-            # 清空副栏所有Tab
-            for i in range(secondary_tab_count - 1, -1, -1):
-                try:
-                    self.work_notebook_secondary.forget(i)
-                except:
-                    pass
-            
-            # 移除副栏
-            self.work_minsize_manager.remove_panel(self.secondary_panel_container)
+        # 委托给工作面板处理
+        self.work_panel.toggle_dual_panel_mode(dual_panel_mode)
     
     def _toggle_command_panel(self):
         """切换命令面板显示/隐藏"""
@@ -459,113 +212,9 @@ class SerialToolApp(tk.Tk):
         # 保存状态到配置
         self.config_manager.set_command_panel_visible(self.right_panel_visible)
     
-    def _add_work_tab(self, notebook=None):
-        """添加工作Tab"""
-        # 如果没有指定notebook，使用主notebook
-        if notebook is None:
-            notebook = self.work_notebook
-        
-        # 判断是主栏还是副栏
-        panel_type = 'secondary' if notebook == self.work_notebook_secondary else 'main'
-        
-        # 检查该notebook是否已有Tab（不含加号Tab）
-        current_tab_count = notebook.index('end') - 1
-        # 如果是该notebook的第一个Tab，则需要加载上次的串口
-        is_first_tab = (current_tab_count == 0)
-        
-        tab_name = 'New Tab'
-        
-        work_tab = WorkTab(notebook, self.config_manager, tab_name, is_first_tab, 
-                          on_widget_click=self._on_work_tab_widget_click,
-                          on_data_sent=self._on_work_tab_data_sent,
-                          panel_type=panel_type)
-        
-        # 在加号Tab之前插入新Tab
-        insert_index = notebook.index('end') - 1
-        notebook.insert(insert_index, work_tab, text=tab_name)
-        
-        self.work_tabs.append(work_tab)
-        self.tab_counter += 1
-        
-        # 切换到新Tab
-        notebook.select(insert_index)
-        
-        # 更新Tab标题
-        self._update_tab_title_for_notebook(notebook, insert_index, tab_name)
-        
-        # 如果主题已加载，应用主题到新Tab
-        if hasattr(self, 'theme_manager') and self.theme_manager.current_theme:
-            font_size = self.config_manager.get_font_size()
-            # 延迟应用主题，确保控件已完全创建
-            self.after(10, lambda: work_tab.apply_theme(self.theme_manager, font_size))
-    
-    def _update_tab_title(self, index, title):
-        """更新Tab标题"""
-        self.work_notebook.tab(index, text=title)
-    
-    def _update_tab_title_for_notebook(self, notebook, index, title):
-        """更新指定notebook的Tab标题"""
-        notebook.tab(index, text=title)
-    
-    def _close_tab_widget(self, tab_widget, notebook):
-        """关闭指定的Tab widget"""
-        # 检查是否是加号Tab
-        if tab_widget not in self.work_tabs:
-            return
-        
-        # 至少保留一个Tab，静默处理（整个应用至少需要一个Tab）
-        if len(self.work_tabs) <= 1:
-            return
-        
-        # 每个栏至少保留一个Tab
-        current_notebook_tabs = notebook.index('end') - 1  # 不含加号Tab
-        if current_notebook_tabs <= 1:
-            # 该栏只有1个Tab，不允许关闭
-            return
-        
-        # 关闭串口连接
-        if hasattr(tab_widget, 'serial_manager') and tab_widget.serial_manager.is_open():
-            tab_widget._disconnect()
-        
-        # 获取Tab在notebook中的索引
-        try:
-            tab_index = notebook.index(tab_widget)
-        except:
-            return
-        
-        # 计算删除后该notebook还剩多少Tab（不包括加号Tab）
-        remaining_count = current_notebook_tabs - 1  # 删除后剩余的Tab数量
-        
-        # 先选中其他Tab，避免自动选中"+"Tab
-        if remaining_count > 0:
-            new_index = min(tab_index, remaining_count - 1)  # 选中前一个或最后一个
-            notebook.select(new_index)
-        
-        # 从work_tabs列表中移除
-        if tab_widget in self.work_tabs:
-            self.work_tabs.remove(tab_widget)
-        
-        # 最后删除Tab
-        notebook.forget(tab_index)
-    
     def _get_current_work_tab(self):
-        """获取当前工作Tab（双栏模式下返回激活notebook的当前Tab）"""
-        try:
-            # 在双栏模式下，使用激活的notebook
-            notebook = self.active_notebook if self.active_notebook else self.work_notebook
-            
-            # 获取当前选中的Tab
-            current_index = notebook.index('current')
-            
-            # 获取该Tab的widget
-            if current_index < notebook.index('end') - 1:  # 不是加号Tab
-                tab_widget = notebook.nametowidget(notebook.tabs()[current_index])
-                if tab_widget in self.work_tabs:
-                    return tab_widget
-            
-            return None
-        except:
-            return None
+        """获取当前工作Tab"""
+        return self.work_panel.get_current_work_tab()
     
     def _send_quick_command(self, command, mode):
         """
@@ -689,32 +338,17 @@ GitHub: https://github.com/vitoaz/quickky-serial-tool"""
             # 应用到主窗口
             self.configure(bg=colors.get('frame_bg', '#F5F5F5'))
             
-            # 应用到主容器
-            if hasattr(self, 'work_area_container'):
-                self.work_area_container.configure(style='TFrame')
-            
+            # 应用到右侧容器
             if hasattr(self, 'right_container'):
                 self.right_container.configure(style='TFrame')
             
-            # 应用到主面板和副面板
-            if hasattr(self, 'main_panel'):
-                self.main_panel.configure(bg=colors.get('background', '#FFFFFF'))
-            
-            if hasattr(self, 'secondary_panel'):
-                self.secondary_panel.configure(bg=colors.get('background', '#FFFFFF'))
-            
-            # 更新面板边框颜色
-            if hasattr(self, '_update_panel_highlight'):
-                self._update_panel_highlight()
             
             # 递归更新所有Frame的背景色
             self._update_frames_bg(self, colors)
             
-            # 应用到所有工作Tab
-            font_size = self.config_manager.get_font_size()
-            for work_tab in self.work_tabs:
-                if hasattr(work_tab, 'apply_theme'):
-                    work_tab.apply_theme(self.theme_manager, font_size)
+            # 应用到工作面板
+            if hasattr(self, 'work_panel'):
+                self.work_panel.apply_theme()
             
             # 应用到命令面板
             if hasattr(self, 'quick_commands_panel'):
@@ -794,9 +428,9 @@ GitHub: https://github.com/vitoaz/quickky-serial-tool"""
     
     def _on_closing(self):
         """关闭应用"""
-        # 清理所有工作Tab
-        for work_tab in self.work_tabs:
-            work_tab.cleanup()
+        # 清理工作面板
+        if hasattr(self, 'work_panel'):
+            self.work_panel.cleanup()
         
         self.destroy()
 

@@ -12,7 +12,17 @@
 
 使用 `git diff` 查看已修改文件的具体改动内容，理解本次修改的范围和目的。
 
-### 3. 分析修改类型
+### 3. 检查文档同步
+
+如果代码修改涉及以下内容，必须更新相应文档：
+
+- 新增功能 → 更新 [README.md](mdc:README.md) 和 [PROJECT_DESIGN.md](mdc:PROJECT_DESIGN.md)
+- 修改用户界面 → 更新 [README.md](mdc:README.md)
+- 变更配置方式 → 更新文档
+- 修改使用方法 → 更新 [README.md](mdc:README.md)
+- 更新依赖项 → 更新 [requirements.txt](mdc:requirements.txt)
+
+### 4. 分析修改类型
 
 根据修改内容，确定提交类型（type）：
 
@@ -25,7 +35,7 @@
 - **test**: 测试相关
 - **chore**: 构建/工具变动
 
-### 4. 生成提交信息
+### 5. 生成提交信息
 
 根据修改内容自动生成简明扼要的提交信息，格式：
 
@@ -36,16 +46,6 @@
 - 改动点1
 - 改动点2
 ```
-
-### 5. 检查文档同步
-
-如果代码修改涉及以下内容，必须更新相应文档：
-
-- 新增功能 → 更新 [README.md](mdc:README.md) 和 [PROJECT_DESIGN.md](mdc:PROJECT_DESIGN.md)
-- 修改用户界面 → 更新 [README.md](mdc:README.md)
-- 变更配置方式 → 更新文档
-- 修改使用方法 → 更新 [README.md](mdc:README.md)
-- 更新依赖项 → 更新 [requirements.txt](mdc:requirements.txt)
 
 ### 6. 执行 git add
 
@@ -108,28 +108,38 @@ chcp 65001
 ## 示例
 
 ```bash
-# 检查状态
+# 1. 检查状态
 git status
 
-# 查看改动
+# 2. 查看改动
 git diff
 
-# 添加文件
-git add src/components/custom_menubar.py src/main/app.py
+# 3. 检查文档同步
+# 如果新增了功能，需要更新 README.md 和 PROJECT_DESIGN.md
+# 如果修改了用户界面，需要更新 README.md
+# 本例新增了自定义菜单栏功能，需要更新相关文档
 
-# 创建提交信息文件 commit_msg.txt 并写入：
+# 4. 分析修改类型：feat（新增功能）
+
+# 5. 生成提交信息（已包含文档更新）
+
+# 6. 添加文件
+git add src/components/custom_menubar.py src/main/app.py README.md PROJECT_DESIGN.md
+
+# 7. 创建提交信息文件 commit_msg.txt 并写入：
 # feat: 实现自定义菜单栏组件
 # 
 # - 新增CustomMenuBar自定义菜单栏控件
 # - 替换原生菜单为自定义菜单
 # - 优化主题切换和样式应用
+# - 更新项目文档和使用说明
 
-# 提交
+# 8. 提交
 git commit -F commit_msg.txt
 
 # 删除临时文件
 del commit_msg.txt
 
-# 验证
+# 9. 验证
 git log -1
 ```

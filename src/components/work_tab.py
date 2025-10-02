@@ -9,9 +9,9 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog
 from datetime import datetime
 import threading
-from components.serial_settings_panel import SerialSettingsPanel
-from components.receive_settings_panel import ReceiveSettingsPanel
-from components.send_settings_panel import SendSettingsPanel
+from .serial_settings_panel import SerialSettingsPanel
+from .receive_settings_panel import ReceiveSettingsPanel
+from .send_settings_panel import SendSettingsPanel
 from utils.serial_manager import SerialManager
 from utils.ttk_paned_window_minisize import ttk_panedwindow_minsize
 
