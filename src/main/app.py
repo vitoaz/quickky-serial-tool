@@ -20,12 +20,13 @@ from components.quick_commands_panel import QuickCommandsPanel
 from components.send_history_panel import SendHistoryPanel
 from components.custom_menubar import CustomMenuBar
 from utils.config_manager import ConfigManager
-from utils.file_utils import resource_path
+from utils.file_utils import resource_path, get_base_path
 from utils.theme_manager import ThemeManager
+from utils.ttk_paned_window_minisize import ttk_panedwindow_minsize
 
 # 导入版本信息
 try:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    sys.path.insert(0, get_base_path())
     import version
     VERSION = version.VERSION
     BUILD_TIME = version.BUILD_TIME
@@ -139,9 +140,12 @@ class SerialToolApp(tk.Tk):
         self.main_paned = ttk.PanedWindow(self, orient='horizontal')
         self.main_paned.pack(fill='both', expand=True)
         
+        # 创建主容器的最小尺寸管理器
+        self.main_minsize_manager = ttk_panedwindow_minsize(self.main_paned, 'horizontal')
+        
         # 左侧工作面板（支持双栏）
         self.work_area_container = ttk.Frame(self.main_paned)
-        self.main_paned.add(self.work_area_container, weight=4)
+        self.main_minsize_manager.add_panel(self.work_area_container, min_size=600, weight=4)
         
         # 创建工作区域（单栏或双栏）
         self.dual_panel_mode = self.config_manager.get_dual_panel_mode()
@@ -159,7 +163,7 @@ class SerialToolApp(tk.Tk):
         self.right_panel_visible = self.config_manager.get_command_panel_visible()
         if self.right_panel_visible:
             # 权重为0让它不自动扩展
-            self.main_paned.add(self.right_container, weight=0)
+            self.main_minsize_manager.add_panel(self.right_container, min_size=250, weight=0)
         
         # 快捷指令Tab
         self.quick_commands_panel = QuickCommandsPanel(
@@ -186,9 +190,12 @@ class SerialToolApp(tk.Tk):
         self.work_paned = ttk.PanedWindow(self.work_area_container, orient='horizontal')
         self.work_paned.pack(fill='both', expand=True)
         
+        # 创建工作区域的最小尺寸管理器
+        self.work_minsize_manager = ttk_panedwindow_minsize(self.work_paned, 'horizontal')
+        
         # 左栏（主栏，始终存在）- 使用Frame实现顶部边框
         self.main_panel_container = tk.Frame(self.work_paned)
-        self.work_paned.add(self.main_panel_container, weight=1)
+        self.work_minsize_manager.add_panel(self.main_panel_container, min_size=400, weight=1)
         
         # 顶部边框（4px）- 未激活时透明
         self.main_panel_top_border = tk.Frame(self.main_panel_container, height=4)
@@ -213,7 +220,7 @@ class SerialToolApp(tk.Tk):
         
         # 根据配置决定是否显示副栏
         if self.dual_panel_mode:
-            self.work_paned.add(self.secondary_panel_container, weight=1)
+            self.work_minsize_manager.add_panel(self.secondary_panel_container, min_size=400, weight=1)
         
         # 设置主栏为默认激活
         self.active_notebook = self.work_notebook
@@ -397,7 +404,7 @@ class SerialToolApp(tk.Tk):
         
         if self.dual_panel_mode:
             # 切换到双栏：显示副栏
-            self.work_paned.add(self.secondary_panel_container, weight=1)
+            self.work_minsize_manager.add_panel(self.secondary_panel_container, min_size=400, weight=1)
             
             # 检查副栏是否有Tab，如果没有则创建一个
             secondary_tab_count = self.work_notebook_secondary.index('end') - 1  # 排除加号Tab
@@ -436,7 +443,7 @@ class SerialToolApp(tk.Tk):
                     pass
             
             # 移除副栏
-            self.work_paned.remove(self.secondary_panel_container)
+            self.work_minsize_manager.remove_panel(self.secondary_panel_container)
     
     def _toggle_command_panel(self):
         """切换命令面板显示/隐藏"""
@@ -444,10 +451,10 @@ class SerialToolApp(tk.Tk):
         
         if self.right_panel_visible:
             # 显示命令面板，权重为0保持固定大小
-            self.main_paned.add(self.right_container, weight=0)
+            self.main_minsize_manager.add_panel(self.right_container, min_size=250, weight=0)
         else:
             # 隐藏命令面板
-            self.main_paned.remove(self.right_container)
+            self.main_minsize_manager.remove_panel(self.right_container)
         
         # 保存状态到配置
         self.config_manager.set_command_panel_visible(self.right_panel_visible)

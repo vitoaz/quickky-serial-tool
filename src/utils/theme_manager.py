@@ -10,6 +10,7 @@ import os
 import sys
 from typing import Dict, List
 from tkinter import ttk
+from .file_utils import get_base_path
 
 
 class ThemeManager:
@@ -23,13 +24,7 @@ class ThemeManager:
             root: Tkinter根窗口，用于设置ttk.Style
         """
         # 获取主题目录路径
-        if getattr(sys, 'frozen', False):
-            # 打包后的exe环境
-            base_path = os.path.dirname(sys.executable)
-        else:
-            # 开发环境
-            base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        
+        base_path = get_base_path()
         self.themes_dir = os.path.join(base_path, 'themes')
         self.current_theme = None
         self.root = root

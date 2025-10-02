@@ -13,6 +13,7 @@ from components.serial_settings_panel import SerialSettingsPanel
 from components.receive_settings_panel import ReceiveSettingsPanel
 from components.send_settings_panel import SendSettingsPanel
 from utils.serial_manager import SerialManager
+from utils.ttk_paned_window_minisize import ttk_panedwindow_minsize
 
 class WorkTab(ttk.Frame):
     """工作Tab"""
@@ -57,19 +58,23 @@ class WorkTab(ttk.Frame):
         paned_window = ttk.PanedWindow(self, orient='horizontal')
         paned_window.pack(fill='both', expand=True, padx=5, pady=5)
         
-        # 左侧配置区（固定宽度）
-        left_pane = ttk.Frame(paned_window, width=200)
+        # 创建最小尺寸管理器
+        minsize_manager = ttk_panedwindow_minsize(paned_window, 'horizontal')
+        
+        # 左侧配置区（参数设置区）
+        left_pane = ttk.Frame(paned_window, width=180)
         left_pane.pack_propagate(False)  # 阻止子控件改变Frame大小
-        paned_window.add(left_pane, weight=0)
+        minsize_manager.add_panel(left_pane, min_size=160, weight=0)
         
         # 右侧数据区（可扩展）
         right_pane = ttk.Frame(paned_window)
-        paned_window.add(right_pane, weight=1)
+        minsize_manager.add_panel(right_pane, min_size=300, weight=1)
         
         # 左侧配置区
         # 串口设置
         self.serial_settings = SerialSettingsPanel(left_pane, self.config_manager, 
-                                                   on_change_callback=self._on_serial_config_changed)
+                                                   on_change_callback=self._on_serial_config_changed,
+                                                   panel_type=self.panel_type)
         self.serial_settings.pack(fill='x', pady=(0, 3))
         
         # 连接/断开按钮（放在串口设置下面）

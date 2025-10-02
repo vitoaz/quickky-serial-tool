@@ -29,7 +29,7 @@ class SerialSettingsPanel(ttk.LabelFrame):
     # 流控选项
     FLOW_CONTROLS = ['None', 'Hardware', 'Software']
     
-    def __init__(self, parent, config_manager, on_change_callback=None):
+    def __init__(self, parent, config_manager, on_change_callback=None, panel_type='main'):
         """
         初始化串口设置面板
         
@@ -37,10 +37,12 @@ class SerialSettingsPanel(ttk.LabelFrame):
             parent: 父控件
             config_manager: 配置管理器
             on_change_callback: 配置变化回调函数
+            panel_type: 面板类型 ('main' 或 'secondary')
         """
         super().__init__(parent, text='串口设置', padding=(8, 5))
         self.config_manager = config_manager
         self.on_change_callback = on_change_callback
+        self.panel_type = panel_type
         
         self._create_widgets()
     
@@ -109,7 +111,7 @@ class SerialSettingsPanel(ttk.LabelFrame):
             # 加载该串口的配置
             config = self.config_manager.get_port_config(port)
             self.load_config(config['serial_settings'])
-            self.config_manager.set_last_port(port)
+            self.config_manager.set_last_port(port, self.panel_type)
             
             if self.on_change_callback:
                 self.on_change_callback('port', port)

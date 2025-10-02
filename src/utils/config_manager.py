@@ -9,6 +9,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from .file_utils import get_base_path
 
 class ConfigManager:
     """配置管理类"""
@@ -21,12 +22,7 @@ class ConfigManager:
             config_file (str): 配置文件名
         """
         # 获取应用程序的基础路径
-        if getattr(sys, 'frozen', False):
-            # 打包后的exe环境
-            base_path = os.path.dirname(sys.executable)
-        else:
-            # 开发环境
-            base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        base_path = get_base_path()
         
         # 配置文件路径（与程序同级目录）
         self.config_file = os.path.join(base_path, config_file)
