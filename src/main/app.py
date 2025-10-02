@@ -18,6 +18,7 @@ from pages.work_tab import WorkTab
 from pages.settings_dialog import SettingsDialog
 from components.quick_commands_panel import QuickCommandsPanel
 from components.send_history_panel import SendHistoryPanel
+from components.custom_menubar import CustomMenuBar
 from utils.config_manager import ConfigManager
 from utils.file_utils import resource_path
 from utils.theme_manager import ThemeManager
@@ -65,8 +66,10 @@ class SerialToolApp(tk.Tk):
         # 当前激活的notebook（用于双栏模式）
         self.active_notebook = None
         
-        self._create_menu()
         self._create_widgets()
+        
+        # 创建自定义菜单栏
+        self._create_custom_menu()
         
         # 在创建Tab之前先加载主题
         self._load_and_apply_theme()
@@ -79,52 +82,56 @@ class SerialToolApp(tk.Tk):
         # 退出处理
         self.protocol('WM_DELETE_WINDOW', self._on_closing)
     
-    def _create_menu(self):
-        """创建菜单栏"""
-        menubar = tk.Menu(self)
-        self.config(menu=menubar)
+    def _create_custom_menu(self):
+        """创建自定义菜单栏"""
+        # 创建自定义菜单栏
+        self.custom_menubar = CustomMenuBar(self, relief='flat', bd=0)
+        self.custom_menubar.pack(side='top', fill='x', before=self.main_paned)
+        
+        # 获取可用主题
+        available_themes = self.theme_manager.get_available_themes()
+        current_theme = self.config_manager.get_theme()
+        
+        # 创建变量
+        self.theme_var = tk.StringVar(value=current_theme)
+        self.dual_panel_var = tk.BooleanVar(value=self.config_manager.get_dual_panel_mode())
+        self.command_panel_var = tk.BooleanVar(value=self.config_manager.get_command_panel_visible())
         
         # 文件菜单
-        file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label='文件', menu=file_menu)
-        file_menu.add_command(label='导出配置', command=self._export_config)
-        file_menu.add_command(label='导入配置', command=self._import_config)
-        file_menu.add_separator()
-        file_menu.add_command(label='设置', command=self._show_settings)
-        file_menu.add_separator()
-        file_menu.add_command(label='退出', command=self._on_closing)
+        file_items = [
+            {'label': '导出配置', 'command': self._export_config},
+            {'label': '导入配置', 'command': self._import_config},
+            {'type': 'separator'},
+            {'label': '设置', 'command': self._show_settings},
+            {'type': 'separator'},
+            {'label': '退出', 'command': self._on_closing}
+        ]
+        self.custom_menubar.add_menu('文件', file_items)
         
         # 视图菜单
-        view_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label='视图', menu=view_menu)
-        self.dual_panel_var = tk.BooleanVar(value=self.config_manager.get_dual_panel_mode())
-        view_menu.add_checkbutton(label='双栏模式', variable=self.dual_panel_var, 
-                                  command=self._toggle_dual_panel)
-        self.command_panel_var = tk.BooleanVar(value=self.config_manager.get_command_panel_visible())
-        view_menu.add_checkbutton(label='命令面板', variable=self.command_panel_var,
-                                  command=self._toggle_command_panel)
+        view_items = [
+            {'label': '双栏模式', 'type': 'checkbutton', 'variable': self.dual_panel_var, 'command': self._toggle_dual_panel},
+            {'label': '命令面板', 'type': 'checkbutton', 'variable': self.command_panel_var, 'command': self._toggle_command_panel}
+        ]
+        self.custom_menubar.add_menu('视图', view_items)
         
-        # 主题子菜单
-        view_menu.add_separator()
-        theme_menu = tk.Menu(view_menu, tearoff=0)
-        view_menu.add_cascade(label='主题', menu=theme_menu)
-        
-        # 获取可用主题并创建单选菜单
-        self.theme_var = tk.StringVar(value=self.config_manager.get_theme())
-        available_themes = self.theme_manager.get_available_themes()
-        
+        # 主题菜单
+        theme_items = []
         for theme_name in available_themes:
-            theme_menu.add_radiobutton(
-                label=theme_name.capitalize(),
-                variable=self.theme_var,
-                value=theme_name,
-                command=lambda t=theme_name: self._change_theme(t)
-            )
+            theme_items.append({
+                'label': theme_name.capitalize(),
+                'type': 'radiobutton',
+                'variable': self.theme_var,
+                'value': theme_name,
+                'command': lambda t=theme_name: self._change_theme(t)
+            })
+        self.custom_menubar.add_menu('主题', theme_items)
         
         # 帮助菜单
-        help_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label='帮助', menu=help_menu)
-        help_menu.add_command(label='关于', command=self._show_about)
+        help_items = [
+            {'label': '关于', 'command': self._show_about}
+        ]
+        self.custom_menubar.add_menu('帮助', help_items)
     
     def _create_widgets(self):
         """创建控件"""
@@ -675,9 +682,6 @@ GitHub: https://github.com/vitoaz/quickky-serial-tool"""
             # 应用到主窗口
             self.configure(bg=colors.get('frame_bg', '#F5F5F5'))
             
-            # 全局设置按钮手型指针
-            self.option_add('*TButton*cursor', 'hand2')
-            
             # 应用到主容器
             if hasattr(self, 'work_area_container'):
                 self.work_area_container.configure(style='TFrame')
@@ -744,23 +748,9 @@ GitHub: https://github.com/vitoaz/quickky-serial-tool"""
             return
         
         try:
-            # 配置菜单栏颜色
-            try:
-                menubar = self.nametowidget(self.cget('menu'))
-                if menubar:
-                    menubar.configure(
-                        bg=colors.get('labelframe_bg', '#EFEFEF'),
-                        fg=colors.get('foreground', '#000000'),
-                        activebackground=colors.get('selectbackground', '#0078D7'),
-                        activeforeground=colors.get('selectforeground', '#FFFFFF'),
-                        relief='flat',
-                        bd=0
-                    )
-                    
-                    # 递归配置所有菜单项
-                    self._configure_menu_recursive(menubar, colors)
-            except Exception as e:
-                print(f"配置菜单栏失败: {e}")
+            # 应用主题到自定义菜单栏
+            if hasattr(self, 'custom_menubar'):
+                self.custom_menubar.apply_theme(colors)
             
             # Windows 10/11 标题栏深色模式（需要特殊API）
             try:
@@ -794,34 +784,6 @@ GitHub: https://github.com/vitoaz/quickky-serial-tool"""
                 
         except Exception as e:
             print(f"应用菜单主题失败: {e}")
-    
-    def _configure_menu_recursive(self, menu, colors):
-        """递归配置菜单颜色"""
-        try:
-            menu.configure(
-                bg=colors.get('labelframe_bg', '#EFEFEF'),
-                fg=colors.get('foreground', '#000000'),
-                activebackground=colors.get('selectbackground', '#0078D7'),
-                activeforeground=colors.get('selectforeground', '#FFFFFF'),
-                selectcolor=colors.get('checkbox_selected', colors.get('selectbackground', '#0078D7')),
-                relief='flat',
-                bd=0
-            )
-            
-            # 处理所有菜单项，包括级联菜单
-            last_index = menu.index('end')
-            if last_index is not None:
-                for i in range(last_index + 1):
-                    try:
-                        menu_type = menu.type(i)
-                        if menu_type == 'cascade':
-                            # 获取子菜单并递归配置
-                            submenu = menu.nametowidget(menu.entrycget(i, 'menu'))
-                            self._configure_menu_recursive(submenu, colors)
-                    except:
-                        pass
-        except Exception as e:
-            print(f"配置菜单项失败: {e}")
     
     def _on_closing(self):
         """关闭应用"""

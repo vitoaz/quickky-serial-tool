@@ -157,20 +157,35 @@ class SettingsDialog(tk.Toplevel):
         """应用标题栏主题"""
         try:
             import ctypes
-            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            
+            # 等待窗口完全创建
+            self.update_idletasks()
+                
+            # 获取窗口句柄
+            hwnd = ctypes.windll.user32.FindWindowW(None, self.title())
+            if not hwnd:
+                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
             
             # 检查父窗口的主题
             theme_name = self.config_manager.get_theme()
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            
             if theme_name == 'dark':
-                # 启用深色标题栏
-                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
                 value = ctypes.c_int(1)
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                    hwnd,
-                    DWMWA_USE_IMMERSIVE_DARK_MODE,
-                    ctypes.byref(value),
-                    ctypes.sizeof(value)
-                )
+            else:
+                value = ctypes.c_int(0)
+            
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(value),
+                ctypes.sizeof(value)
+            )
+            
+            # 强制刷新窗口
+            self.withdraw()
+            self.deiconify()
+            
         except Exception as e:
             print(f"设置对话框标题栏主题失败: {e}")
 

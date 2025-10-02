@@ -231,11 +231,14 @@ class ThemeManager:
                                darkcolor=colors.get('border', '#D0D0D0'),
                                borderwidth=1,
                                relief='raised',
-                               focuscolor='',
-                               cursor='hand2')
+                               focuscolor='')
+            # 计算按钮hover颜色
+            button_bg = colors.get('button_bg', '#F0F0F0')
+            button_hover = self._calculate_hover_color(button_bg)
+            
             self.style.map('TButton',
-                         background=[('active', colors.get('border', '#D0D0D0')),
-                                   ('pressed', colors.get('border', '#D0D0D0'))])
+                         background=[('active', button_hover),
+                                   ('pressed', button_hover)])
             
             # 配置ttk.Label样式
             self.style.configure('TLabel',
@@ -310,9 +313,13 @@ class ThemeManager:
                                lightcolor=colors.get('inactive_tab', '#F5F5F5'),
                                padding=[10, 2],
                                focuscolor='')
+            # 计算Tab hover颜色
+            inactive_tab = colors.get('inactive_tab', '#F5F5F5')
+            tab_hover = self._calculate_hover_color(inactive_tab)
+            
             self.style.map('TNotebook.Tab',
                          background=[('selected', colors.get('active_tab', '#E0E0E0')),
-                                   ('active', colors.get('active_tab', '#E0E0E0'))],
+                                   ('active', tab_hover)],
                          foreground=[('selected', colors.get('foreground', '#000000'))],
                          expand=[('selected', [1, 1, 1, 0])])
             
@@ -376,4 +383,44 @@ class ThemeManager:
             
         except Exception as e:
             print(f"应用ttk主题失败: {e}")
+    
+    def _calculate_hover_color(self, bg_color):
+        """
+        计算hover颜色（相对背景色高亮）
+        
+        Args:
+            bg_color: 背景色（hex格式）
+        
+        Returns:
+            hover颜色（hex格式）
+        """
+        try:
+            # 移除#号
+            if bg_color.startswith('#'):
+                bg_color = bg_color[1:]
+            
+            # 转换为RGB
+            r = int(bg_color[0:2], 16)
+            g = int(bg_color[2:4], 16)
+            b = int(bg_color[4:6], 16)
+            
+            # 判断是暗色还是亮色
+            brightness = (r * 299 + g * 587 + b * 114) / 1000
+            
+            if brightness > 128:
+                # 亮色背景：稍微变暗
+                factor = 0.92
+            else:
+                # 暗色背景：变亮更多，使hover更明显
+                factor = 1.25
+            
+            # 应用变化
+            r = int(min(255, max(0, r * factor)))
+            g = int(min(255, max(0, g * factor)))
+            b = int(min(255, max(0, b * factor)))
+            
+            return f'#{r:02x}{g:02x}{b:02x}'
+        except:
+            # 出错时返回默认值
+            return bg_color if bg_color.startswith('#') else f'#{bg_color}'
 
