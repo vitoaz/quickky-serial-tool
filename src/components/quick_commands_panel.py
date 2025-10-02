@@ -83,7 +83,10 @@ class QuickCommandsPanel(ttk.Frame):
         # 加载该分组的指令
         for cmd in group['commands']:
             mode = cmd.get('mode', 'TEXT')
-            tree.insert('', 'end', values=(cmd['name'], mode, cmd['command']))
+            # 转义换行符用于显示，确保command是字符串
+            command_str = str(cmd['command']) if cmd['command'] is not None else ''
+            display_command = command_str.replace('\n', '\\n').replace('\r', '\\r')
+            tree.insert('', 'end', values=(cmd['name'], mode, display_command))
         
         # 双击发送
         tree.bind('<Double-Button-1>', self._on_double_click)
