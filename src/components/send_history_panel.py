@@ -8,22 +8,23 @@ Email: vitoyuz@foxmail.com
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
+from utils.custom_dialogs import ConfirmDialog
 
 class SendHistoryPanel(ttk.Frame):
     """历史发送面板"""
     
-    def __init__(self, parent, config_manager, on_send_callback=None):
+    def __init__(self, parent, config_manager, main_window=None):
         """
         初始化历史发送面板
         
         Args:
             parent: 父控件
             config_manager: 配置管理器
-            on_send_callback: 发送回调函数(data, mode)
+            main_window: 主窗口引用
         """
         super().__init__(parent)
         self.config_manager = config_manager
-        self.on_send_callback = on_send_callback
+        self.main_window = main_window
         
         self._create_widgets()
         self._load_history()
@@ -42,11 +43,6 @@ class SendHistoryPanel(ttk.Frame):
         self.tree.column('time', width=125, minwidth=100)
         self.tree.column('mode', width=32, minwidth=32)
         self.tree.column('data', width=80, minwidth=60)
-        
-        # 设置字体大小
-        style = ttk.Style()
-        style.configure('Treeview', font=('', 8))
-        style.configure('Treeview.Heading', font=('', 8))
         
         scrollbar = ttk.Scrollbar(list_frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -94,14 +90,16 @@ class SendHistoryPanel(ttk.Frame):
     
     def _clear_history(self):
         """清空历史"""
-        if messagebox.askyesno('确认', '确定要清空所有发送历史吗？'):
+        theme_manager = self.main_window.theme_manager if self.main_window else None
+        if ConfirmDialog.ask_yes_no(self.winfo_toplevel(), '确认', 
+                                   '确定要清空所有发送历史吗？', theme_manager):
             self.config_manager.clear_send_history()
             self._load_history()
     
     def _on_double_click(self, event):
         """双击发送"""
         selection = self.tree.selection()
-        if selection and self.on_send_callback:
+        if selection and self.main_window:
             item = self.tree.item(selection[0])
             values = item['values']
             tags = item['tags']
@@ -109,8 +107,19 @@ class SendHistoryPanel(ttk.Frame):
             mode = values[1]      # 模式在第2列
             data = tags[1]        # 完整数据保存在tags中
             
-            # 传递数据和模式给回调
-            self.on_send_callback(data, mode)
+            # 直接通过主窗口发送
+            self._send_from_history(data, mode)
+    
+    def _send_from_history(self, data, mode):
+        """从历史发送"""
+        if not self.main_window:
+            return
+            
+        # 通过工作面板发送
+        if self.main_window.work_panel.send_data(data, mode):
+            # 刷新历史发送面板
+            if hasattr(self.main_window, 'command_panel'):
+                self.main_window.command_panel.refresh_history()
     
     def refresh(self):
         """刷新历史列表"""

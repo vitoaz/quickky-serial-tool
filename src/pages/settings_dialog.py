@@ -36,14 +36,9 @@ class SettingsDialog(tk.Toplevel):
         
         self._create_widgets()
         
-        # 应用父窗口的标题栏主题
-        self._apply_titlebar_theme()
-        
-        # 使用工具类显示对话框
-        DialogUtils.show_modal_dialog(self, parent, 400, 300)
-        
-        # 阻塞父窗口
-        self.wait_window()
+        # 存储主题管理器引用，供 DialogUtils 使用
+        if hasattr(parent, 'theme_manager'):
+            self.theme_manager = parent.theme_manager
     
     def _create_widgets(self):
         """创建控件"""
@@ -70,7 +65,7 @@ class SettingsDialog(tk.Toplevel):
             width=15
         )
         buffer_size_spinbox.pack(side='left', padx=(10, 5))
-        ttk.Label(row1, text='行').pack(side='left')
+        ttk.Label(row1, text='').pack(side='left')
         
         # 发送历史最大条数
         row2 = ttk.Frame(settings_frame)
@@ -87,7 +82,7 @@ class SettingsDialog(tk.Toplevel):
             width=15
         )
         history_max_spinbox.pack(side='left', padx=(10, 5))
-        ttk.Label(row2, text='条').pack(side='left')
+        ttk.Label(row2, text='').pack(side='left')
         
         # 接收区域字体大小
         row3 = ttk.Frame(settings_frame)
@@ -104,7 +99,7 @@ class SettingsDialog(tk.Toplevel):
             width=15
         )
         font_size_spinbox.pack(side='left', padx=(10, 5))
-        ttk.Label(row3, text='点').pack(side='left')
+        ttk.Label(row3, text='').pack(side='left')
         
         # 按钮容器
         button_frame = ttk.Frame(main_frame)
@@ -130,7 +125,7 @@ class SettingsDialog(tk.Toplevel):
                 return
             
             if font_size < 6 or font_size > 20:
-                messagebox.showerror('错误', '字体大小必须在6-20点之间', parent=self)
+                messagebox.showerror('错误', '字体大小必须在6-20之间', parent=self)
                 return
             
             # 保存设置
@@ -141,51 +136,15 @@ class SettingsDialog(tk.Toplevel):
             }
             self.config_manager.set_global_settings(settings)
             
-            # 提示需要重新应用设置
-            messagebox.showinfo('提示', '设置已保存。字体大小将在切换主题后生效。', parent=self)
+            # 通知父窗口重新应用主题（使字体设置生效）
+            if hasattr(self.parent_window, '_apply_theme_to_all_widgets'):
+                self.parent_window._apply_theme_to_all_widgets()
             
             self.destroy()
-            
+
         except tk.TclError:
             messagebox.showerror('错误', '请输入有效的数字', parent=self)
     
     def _on_cancel(self):
         """取消按钮处理"""
         self.destroy()
-    
-    def _apply_titlebar_theme(self):
-        """应用标题栏主题"""
-        try:
-            import ctypes
-            
-            # 等待窗口完全创建
-            self.update_idletasks()
-                
-            # 获取窗口句柄
-            hwnd = ctypes.windll.user32.FindWindowW(None, self.title())
-            if not hwnd:
-                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-            
-            # 检查父窗口的主题
-            theme_name = self.config_manager.get_theme()
-            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            
-            if theme_name == 'dark':
-                value = ctypes.c_int(1)
-            else:
-                value = ctypes.c_int(0)
-            
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_USE_IMMERSIVE_DARK_MODE,
-                ctypes.byref(value),
-                ctypes.sizeof(value)
-            )
-            
-            # 强制刷新窗口
-            self.withdraw()
-            self.deiconify()
-            
-        except Exception as e:
-            print(f"设置对话框标题栏主题失败: {e}")
-

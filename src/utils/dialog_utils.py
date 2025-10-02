@@ -6,6 +6,7 @@ Email: vitoyuz@foxmail.com
 """
 
 import tkinter as tk
+from tkinter import ttk
 
 
 class DialogUtils:
@@ -22,14 +23,11 @@ class DialogUtils:
             width: 对话框宽度（可选，不指定则使用实际宽度）
             height: 对话框高度（可选，不指定则使用实际高度）
         """
-        # 确保对话框已经创建完成
-        dialog.update_idletasks()
-        
-        # 获取对话框尺寸
+        # 如果没有指定尺寸，使用默认尺寸避免闪烁
         if width is None:
-            width = dialog.winfo_reqwidth()
+            width = 400
         if height is None:
-            height = dialog.winfo_reqheight()
+            height = 300
         
         # 获取父窗口位置和尺寸
         parent_x = parent.winfo_x()
@@ -57,33 +55,7 @@ class DialogUtils:
         
         # 设置对话框位置和大小
         dialog.geometry(f'{width}x{height}+{x}+{y}')
-    
-    @staticmethod
-    def create_modal_dialog(parent, title, width=400, height=300):
-        """
-        创建一个模态对话框，自动居中显示
-        
-        Args:
-            parent: 父窗口
-            title: 对话框标题
-            width: 对话框宽度
-            height: 对话框高度
-            
-        Returns:
-            tk.Toplevel: 创建的对话框
-        """
-        dialog = tk.Toplevel(parent)
-        dialog.title(title)
-        dialog.resizable(False, False)
-        
-        # 设置模态
-        dialog.transient(parent)
-        
-        # 先隐藏窗口，避免闪烁
-        dialog.withdraw()
-        
-        return dialog
-    
+
     @staticmethod
     def show_modal_dialog(dialog, parent, width=None, height=None):
         """
@@ -101,3 +73,7 @@ class DialogUtils:
         # 显示窗口并设置模态
         dialog.deiconify()
         dialog.grab_set()
+        
+        # 在窗口显示后应用标题栏主题
+        if hasattr(dialog, 'theme_manager') and dialog.theme_manager:
+            dialog.after(10, lambda: dialog.theme_manager.apply_titlebar_theme(dialog))

@@ -17,25 +17,18 @@ from utils.config_manager import ConfigManager
 from utils.file_utils import resource_path
 from utils.theme_manager import ThemeManager
 from utils.ttk_paned_window_minisize import ttk_panedwindow_minsize
+from utils.app_info import AppInfo
+from utils.custom_dialogs import InfoDialog
 
 
 class MainWindow(tk.Tk):
     """主窗口类"""
     
-    def __init__(self, version="1.0.0", build_time="未知"):
-        """
-        初始化主窗口
-        
-        Args:
-            version: 应用版本号
-            build_time: 构建时间
-        """
+    def __init__(self):
+        """初始化主窗口"""
         super().__init__()
         
-        self.version = version
-        self.build_time = build_time
-        
-        self.title(f'QSerial v{version} - by Aaz')
+        self.title(AppInfo.get_window_title())
         self.geometry('1024x600')
         
         # 设置窗口图标
@@ -146,8 +139,7 @@ class MainWindow(tk.Tk):
         self.command_panel = CommandPanel(
             self.main_paned,
             self.config_manager,
-            on_send_quick_command=self._send_quick_command,
-            on_send_from_history=self._send_from_history
+            main_window=self
         )
         
         # 从配置加载命令面板显示状态
@@ -184,51 +176,6 @@ class MainWindow(tk.Tk):
         # 保存状态到配置
         self.config_manager.set_command_panel_visible(self.right_panel_visible)
     
-    def _get_current_work_tab(self):
-        """获取当前工作Tab"""
-        return self.work_panel.get_current_work_tab()
-    
-    def _send_quick_command(self, command, mode):
-        """
-        发送快捷指令
-        
-        Args:
-            command: 指令内容
-            mode: 发送模式(TEXT/HEX)
-        """
-        work_tab = self._get_current_work_tab()
-        if work_tab:
-            # 设置发送文本
-            work_tab.send_text.delete('1.0', 'end')
-            work_tab.send_text.insert('1.0', command)
-            
-            # 根据指令的模式发送（不看当前Tab的发送模式）
-            work_tab._send_data(override_mode=mode)
-            
-            # 立即刷新历史发送面板
-            if hasattr(self, 'command_panel'):
-                self.command_panel.refresh_history()
-    
-    def _send_from_history(self, data, mode):
-        """
-        从历史发送
-        
-        Args:
-            data: 发送数据
-            mode: 发送模式(TEXT/HEX)
-        """
-        work_tab = self._get_current_work_tab()
-        if work_tab:
-            # 设置发送文本
-            work_tab.send_text.delete('1.0', 'end')
-            work_tab.send_text.insert('1.0', data)
-            
-            # 直接按历史记录的模式发送
-            work_tab._send_data(override_mode=mode)
-            
-            # 立即刷新历史发送面板
-            if hasattr(self, 'command_panel'):
-                self.command_panel.refresh_history()
     
     def _export_config(self):
         """导出配置"""
@@ -259,25 +206,15 @@ class MainWindow(tk.Tk):
     
     def _show_settings(self):
         """显示设置"""
-        SettingsDialog(self, self.config_manager)
+        from utils.dialog_utils import DialogUtils
+        dialog = SettingsDialog(self, self.config_manager)
+        DialogUtils.show_modal_dialog(dialog, self, 400, 300)
+        dialog.wait_window()
     
     def _show_about(self):
         """显示关于"""
-        about_text = f"""QSerial (Quickky Serial Tool)
-
-版本: {self.version}
-构建时间: {self.build_time}
-
-作者: Aaz
-邮箱: vitoyuz@foxmail.com
-
-一个功能强大的串口调试工具
-
-开源地址:
-Gitee: https://gitee.com/vitoaaazzz/quickky-serial-tool
-GitHub: https://github.com/vitoaz/quickky-serial-tool"""
-        
-        messagebox.showinfo('关于', about_text)
+        about_text = AppInfo.get_about_text()
+        InfoDialog.show_info(self, '关于', about_text, self.theme_manager)
     
     def _load_and_apply_theme(self):
         """加载并应用主题"""

@@ -72,6 +72,7 @@ class ThemeManager:
                 with open(theme_file, 'r', encoding='utf-8') as f:
                     theme_data = json.load(f)
                     self.current_theme = theme_data
+                    self._current_theme_name = theme_name  # 保存主题名称
                     return theme_data
             else:
                 print(f"主题文件不存在: {theme_file}")
@@ -187,6 +188,48 @@ class ThemeManager:
         if self.current_theme and 'colors' in self.current_theme:
             return self.current_theme['colors']
         return {}
+    
+    def apply_titlebar_theme(self, window):
+        """
+        应用标题栏主题
+        
+        Args:
+            window: 要应用主题的窗口
+        """
+        try:
+            import ctypes
+            
+            # 等待窗口完全创建
+            window.update_idletasks()
+                
+            # 获取窗口句柄
+            hwnd = ctypes.windll.user32.FindWindowW(None, window.title())
+            if not hwnd:
+                hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
+            
+            # 从保存的主题名称获取
+            theme_name = getattr(self, '_current_theme_name', 'light')
+            
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            
+            if theme_name == 'dark':
+                value = ctypes.c_int(1)
+            else:
+                value = ctypes.c_int(0)
+            
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(value),
+                ctypes.sizeof(value)
+            )
+            
+            # 强制刷新窗口
+            window.withdraw()
+            window.deiconify()
+            
+        except Exception as e:
+            print(f"设置标题栏主题失败: {e}")
     
     def apply_ttk_theme(self):
         """应用主题到ttk控件"""
@@ -327,7 +370,8 @@ class ThemeManager:
                                background=colors.get('entry_bg', '#FFFFFF'),
                                foreground=colors.get('entry_fg', '#000000'),
                                fieldbackground=colors.get('entry_bg', '#FFFFFF'),
-                               bordercolor=colors.get('border', '#D0D0D0'))
+                               bordercolor=colors.get('border', '#D0D0D0'),
+                               font=('', 8))
             self.style.map('Treeview',
                          background=[('selected', colors.get('selectbackground', '#0078D7')),
                                    ('active', colors.get('frame_bg', '#F5F5F5'))],
@@ -339,7 +383,8 @@ class ThemeManager:
                                background=colors.get('button_bg', '#F0F0F0'),
                                foreground=colors.get('foreground', '#000000'),
                                bordercolor=colors.get('border', '#D0D0D0'),
-                               relief='raised')
+                               relief='raised',
+                               font=('', 8))
             self.style.map('Treeview.Heading',
                          background=[('active', colors.get('button_bg', '#F0F0F0'))],
                          foreground=[('active', colors.get('foreground', '#000000'))])

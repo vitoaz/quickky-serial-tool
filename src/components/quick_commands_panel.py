@@ -8,22 +8,24 @@ Email: vitoyuz@foxmail.com
 import tkinter as tk
 from tkinter import ttk, messagebox
 from utils.dialog_utils import DialogUtils
+from utils.custom_dialogs import ConfirmDialog
+from utils.hex_utils import HexUtils
 
 class QuickCommandsPanel(ttk.Frame):
     """快捷指令面板"""
     
-    def __init__(self, parent, config_manager, on_send_callback=None):
+    def __init__(self, parent, config_manager, main_window=None):
         """
         初始化快捷指令面板
         
         Args:
             parent: 父控件
             config_manager: 配置管理器
-            on_send_callback: 发送指令回调函数(command_data, mode)
+            main_window: 主窗口引用
         """
         super().__init__(parent)
         self.config_manager = config_manager
-        self.on_send_callback = on_send_callback
+        self.main_window = main_window
         self.drag_item = None
         
         self._create_widgets()
@@ -68,12 +70,7 @@ class QuickCommandsPanel(ttk.Frame):
         tree.column('name', width=60, minwidth=40)
         tree.column('mode', width=40, minwidth=40)
         tree.column('content', width=150, minwidth=100)
-        
-        # 设置字体大小
-        style = ttk.Style()
-        style.configure('Treeview', font=('', 9))
-        style.configure('Treeview.Heading', font=('', 9))
-        
+
         scrollbar = ttk.Scrollbar(tab_frame, orient='vertical', command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
         
@@ -110,7 +107,7 @@ class QuickCommandsPanel(ttk.Frame):
             if clicked_tab != '':
                 tab_index = int(clicked_tab)
                 menu.add_separator()
-                menu.add_command(label='重命名分组', command=lambda: self._rename_group(tab_index))
+                menu.add_command(label='编辑分组', command=lambda: self._rename_group(tab_index))
                 menu.add_command(label='删除分组', command=lambda: self._delete_group(tab_index))
         except:
             pass
@@ -135,7 +132,10 @@ class QuickCommandsPanel(ttk.Frame):
     
     def _add_group(self):
         """添加分组"""
-        dialog = InputDialog(self.winfo_toplevel(), '新建分组', '请输入分组名称:')
+        theme_manager = self.main_window.theme_manager if self.main_window else None
+        dialog = InputDialog(self.winfo_toplevel(), '新建分组', '请输入分组名称:', theme_manager=theme_manager)
+        DialogUtils.show_modal_dialog(dialog, self.winfo_toplevel(), 350, 150)
+        dialog.wait_window()
         if dialog.result:
             groups = self.config_manager.get_quick_command_groups()
             groups.append({'name': dialog.result, 'commands': []})
@@ -145,15 +145,18 @@ class QuickCommandsPanel(ttk.Frame):
             self.group_notebook.select(len(groups) - 1)
     
     def _rename_group(self, tab_index):
-        """重命名分组"""
+        """编辑分组"""
         groups = self.config_manager.get_quick_command_groups()
         old_name = groups[tab_index]['name']
-        dialog = InputDialog(self.winfo_toplevel(), '重命名分组', '请输入新的分组名称:', old_name)
+        theme_manager = self.main_window.theme_manager if self.main_window else None
+        dialog = InputDialog(self.winfo_toplevel(), '编辑分组', '请输入分组名称:', old_name, theme_manager=theme_manager)
+        DialogUtils.show_modal_dialog(dialog, self.winfo_toplevel(), 350, 150)
+        dialog.wait_window()
         if dialog.result and dialog.result != old_name:
             groups[tab_index]['name'] = dialog.result
             self.config_manager.set_quick_command_groups(groups)
             self._load_groups()
-            self.group_notebook.select(tab_index)
+            self.group_notebook.select(tab_index)   
     
     def _delete_group(self, tab_index):
         """删除分组"""
@@ -162,14 +165,19 @@ class QuickCommandsPanel(ttk.Frame):
             messagebox.showwarning('警告', '至少需要保留一个分组')
             return
         
-        if messagebox.askyesno('确认', f'确定要删除分组"{groups[tab_index]["name"]}"吗？'):
+        theme_manager = self.main_window.theme_manager if self.main_window else None
+        if ConfirmDialog.ask_yes_no(self.winfo_toplevel(), '确认', 
+                                   f'确定要删除分组"{groups[tab_index]["name"]}"吗？', theme_manager):
             groups.pop(tab_index)
             self.config_manager.set_quick_command_groups(groups)
             self._load_groups()
     
     def _add_command(self, tree):
         """添加指令"""
-        dialog = CommandDialog(self.winfo_toplevel(), '添加快捷指令')
+        theme_manager = self.main_window.theme_manager if self.main_window else None
+        dialog = CommandDialog(self.winfo_toplevel(), '添加快捷指令', theme_manager=theme_manager)
+        DialogUtils.show_modal_dialog(dialog, self.winfo_toplevel(), 300, 250)
+        dialog.wait_window()
         if dialog.result:
             name, mode, command = dialog.result
             
@@ -197,8 +205,11 @@ class QuickCommandsPanel(ttk.Frame):
         groups = self.config_manager.get_quick_command_groups()
         cmd = groups[current_tab]['commands'][index]
         
+        theme_manager = self.main_window.theme_manager if self.main_window else None
         dialog = CommandDialog(self.winfo_toplevel(), '编辑快捷指令', 
-                               cmd['name'], cmd.get('mode', 'TEXT'), cmd['command'])
+                               cmd['name'], cmd.get('mode', 'TEXT'), cmd['command'], theme_manager=theme_manager)
+        DialogUtils.show_modal_dialog(dialog, self.winfo_toplevel(), 300, 250)
+        dialog.wait_window()
         if dialog.result:
             name, mode, command = dialog.result
             groups[current_tab]['commands'][index] = {
@@ -216,7 +227,9 @@ class QuickCommandsPanel(ttk.Frame):
         if not selection:
             return
         
-        if messagebox.askyesno('确认', '确定要删除选中的指令吗？'):
+        theme_manager = self.main_window.theme_manager if self.main_window else None
+        if ConfirmDialog.ask_yes_no(self.winfo_toplevel(), '确认', 
+                                   '确定要删除选中的指令吗？', theme_manager):
             current_tab = self.group_notebook.index('current')
             index = tree.index(selection[0])
             groups = self.config_manager.get_quick_command_groups()
@@ -229,13 +242,24 @@ class QuickCommandsPanel(ttk.Frame):
         """双击发送指令"""
         tree = event.widget
         selection = tree.selection()
-        if selection and self.on_send_callback:
+        if selection and self.main_window:
             item = tree.item(selection[0])
             values = item['values']
             command = values[2]  # 内容在第3列
             mode = values[1]      # 模式在第2列
-            # 传递指令和模式给回调
-            self.on_send_callback(command, mode)
+            # 直接通过主窗口发送指令
+            self._send_quick_command(command, mode)
+    
+    def _send_quick_command(self, command, mode):
+        """发送快捷指令"""
+        if not self.main_window:
+            return
+            
+        # 通过工作面板发送
+        if self.main_window.work_panel.send_data(command, mode):
+            # 刷新历史发送面板
+            if hasattr(self.main_window, 'command_panel'):
+                self.main_window.command_panel.refresh_history()
     
     def _on_drag_start(self, event):
         """开始拖动"""
@@ -282,10 +306,11 @@ class QuickCommandsPanel(ttk.Frame):
 class CommandDialog(tk.Toplevel):
     """指令编辑对话框"""
     
-    def __init__(self, parent, title, name='', mode='TEXT', command=''):
+    def __init__(self, parent, title, name='', mode='TEXT', command='', theme_manager=None):
         super().__init__(parent)
         self.title(title)
         self.result = None
+        self.theme_manager = theme_manager
         
         # 设置模态
         self.transient(parent)
@@ -314,18 +339,50 @@ class CommandDialog(tk.Toplevel):
         self.command_text.grid(row=2, column=1, padx=10, pady=10, columnspan=2)
         self.command_text.insert('1.0', command)
         
-        # 按钮
+        # 按钮区域
         btn_frame = ttk.Frame(self)
-        btn_frame.grid(row=3, column=0, columnspan=3, pady=10)
+        btn_frame.grid(row=3, column=0, columnspan=3, pady=5)
         
-        ttk.Button(btn_frame, text='确定', command=self._ok).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text='取消', command=self._cancel).pack(side='left', padx=5)
+        # 错误提示Label（左对齐，在确定按钮上方）
+        self.error_label = tk.Label(btn_frame, text='', fg='red', font=('', 9))
+        self.error_label.pack(anchor='w', pady=(0, 5))
         
-        # 使用工具类显示对话框
-        DialogUtils.show_modal_dialog(self, parent)
+        # 按钮容器
+        button_container = ttk.Frame(btn_frame)
+        button_container.pack(anchor='w')
         
+        ttk.Button(button_container, text='确定', command=self._ok).pack(side='left', padx=5)
+        ttk.Button(button_container, text='取消', command=self._cancel).pack(side='left', padx=5)
+
+        # 应用主题（在创建所有控件后）
+        self._apply_theme()
+        
+        # 设置焦点
         self.name_entry.focus()
-        self.wait_window()
+    
+    def _apply_theme(self):
+        """应用主题"""
+        if self.theme_manager:
+            # 获取主题颜色（完全按照work_tab.py的方式）
+            colors = self.theme_manager.get_theme_colors()
+            
+            if not colors:
+                return
+            
+            # 应用窗口背景色
+            bg_color = colors.get('frame_bg', '#F5F5F5')
+            self.configure(bg=bg_color)
+            
+            # 应用主题到文本控件
+            if hasattr(self, 'command_text'):
+                self.theme_manager.apply_theme_to_widget(self.command_text, 'text')
+            
+            # 应用主题到错误提示Label（完全按照work_tab.py的方式）
+            if hasattr(self, 'error_label'):
+                self.error_label.configure(
+                    bg=colors.get('frame_bg', '#F5F5F5'),
+                    fg=colors.get('log_error_color', '#D32F2F')
+                )
     
     def _ok(self):
         """确定"""
@@ -334,11 +391,22 @@ class CommandDialog(tk.Toplevel):
         command = self.command_text.get('1.0', 'end-1c').strip()
         
         if not name or not command:
-            messagebox.showwarning('警告', '名称和内容不能为空')
+            self.error_label.config(text='名称和内容不能为空')
+            # 3秒后清除错误提示
+            self.after(3000, lambda: self.error_label.config(text=''))
             return
+        
+        # HEX模式下检查格式
+        if mode == 'HEX':
+            if not HexUtils.validate_hex_format(command):
+                self.error_label.config(text=HexUtils.get_format_error_message())
+                # 3秒后清除错误提示
+                self.after(3000, lambda: self.error_label.config(text=''))
+                return
         
         self.result = (name, mode, command)
         self.destroy()
+    
     
     def _cancel(self):
         """取消"""
@@ -347,10 +415,11 @@ class CommandDialog(tk.Toplevel):
 class InputDialog(tk.Toplevel):
     """输入对话框"""
     
-    def __init__(self, parent, title, label, initial_value=''):
+    def __init__(self, parent, title, label, initial_value='', theme_manager=None):
         super().__init__(parent)
         self.title(title)
         self.result = None
+        self.theme_manager = theme_manager
         
         # 设置模态
         self.transient(parent)
@@ -367,29 +436,59 @@ class InputDialog(tk.Toplevel):
         self.entry.insert(0, initial_value)
         self.entry.select_range(0, 'end')
         
-        # 按钮
+        # 按钮区域
         btn_frame = ttk.Frame(self)
-        btn_frame.grid(row=1, column=0, columnspan=2, pady=10)
+        btn_frame.grid(row=1, column=0, columnspan=2, pady=5)
         
-        ttk.Button(btn_frame, text='确定', command=self._ok).pack(side='left', padx=5)
-        ttk.Button(btn_frame, text='取消', command=self._cancel).pack(side='left', padx=5)
+        # 错误提示Label（左对齐，在确定按钮上方）
+        self.error_label = tk.Label(btn_frame, text='', fg='red', font=('', 9))
+        self.error_label.pack(anchor='w', pady=(0, 5))
         
-        # 使用工具类显示对话框
-        DialogUtils.show_modal_dialog(self, parent)
+        # 按钮容器
+        button_container = ttk.Frame(btn_frame)
+        button_container.pack(anchor='w')
         
+        ttk.Button(button_container, text='确定', command=self._ok).pack(side='left', padx=5)
+        ttk.Button(button_container, text='取消', command=self._cancel).pack(side='left', padx=5)
+        
+        # 应用主题（在创建所有控件后）
+        self._apply_theme()
+        
+        # 设置焦点和绑定回车键
         self.entry.focus()
-        
-        # 绑定回车键
         self.entry.bind('<Return>', lambda e: self._ok())
-        
-        self.wait_window()
+    
+    def _apply_theme(self):
+        """应用主题"""
+        if self.theme_manager:
+            # 获取主题颜色（完全按照work_tab.py的方式）
+            colors = self.theme_manager.get_theme_colors()
+            
+            if not colors:
+                return
+            
+            # 应用窗口背景色
+            bg_color = colors.get('frame_bg', '#F5F5F5')
+            self.configure(bg=bg_color)
+            
+            # 应用主题到错误提示Label
+            if hasattr(self, 'error_label'):
+                self.error_label.configure(
+                    bg=colors.get('frame_bg', '#F5F5F5'),
+                    fg=colors.get('log_error_color', '#D32F2F')
+                )
     
     def _ok(self):
         """确定"""
         value = self.entry.get().strip()
-        if value:
-            self.result = value
-            self.destroy()
+        if not value:
+            self.error_label.config(text='分组名称不能为空')
+            # 3秒后清除错误提示
+            self.after(3000, lambda: self.error_label.config(text=''))
+            return
+        
+        self.result = value
+        self.destroy()
     
     def _cancel(self):
         """取消"""

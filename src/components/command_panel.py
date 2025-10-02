@@ -15,21 +15,19 @@ from .send_history_panel import SendHistoryPanel
 class CommandPanel(ttk.Frame):
     """命令面板 - 管理快捷指令和历史发送"""
     
-    def __init__(self, parent, config_manager, on_send_quick_command=None, on_send_from_history=None):
+    def __init__(self, parent, config_manager, main_window=None):
         """
         初始化命令面板
         
         Args:
             parent: 父控件
             config_manager: 配置管理器
-            on_send_quick_command: 快捷指令发送回调
-            on_send_from_history: 历史发送回调
+            main_window: 主窗口引用
         """
         super().__init__(parent)
         
         self.config_manager = config_manager
-        self.on_send_quick_command = on_send_quick_command
-        self.on_send_from_history = on_send_from_history
+        self.main_window = main_window
         
         # 设置固定宽度
         self.configure(width=280)
@@ -47,7 +45,7 @@ class CommandPanel(ttk.Frame):
         self.quick_commands_panel = QuickCommandsPanel(
             self.command_notebook, 
             self.config_manager,
-            on_send_callback=self.on_send_quick_command
+            main_window=self.main_window
         )
         self.command_notebook.add(self.quick_commands_panel, text='快捷指令')
         
@@ -55,7 +53,7 @@ class CommandPanel(ttk.Frame):
         self.send_history_panel = SendHistoryPanel(
             self.command_notebook,
             self.config_manager,
-            on_send_callback=self.on_send_from_history
+            main_window=self.main_window
         )
         self.command_notebook.add(self.send_history_panel, text='历史发送')
         

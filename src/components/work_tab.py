@@ -14,6 +14,7 @@ from .receive_settings_panel import ReceiveSettingsPanel
 from .send_settings_panel import SendSettingsPanel
 from utils.serial_manager import SerialManager
 from utils.ttk_paned_window_minisize import ttk_panedwindow_minsize
+from utils.hex_utils import HexUtils
 
 class WorkTab(ttk.Frame):
     """工作Tab"""
@@ -381,8 +382,8 @@ class WorkTab(ttk.Frame):
         
         # HEX模式下检查格式
         if send_mode == 'HEX':
-            if not self._validate_hex_format(data):
-                self.send_error_label.config(text='HEX格式错误，请输入有效的十六进制字符')
+            if not HexUtils.validate_hex_format(data):
+                self.send_error_label.config(text=HexUtils.get_format_error_message())
                 # 3秒后清除错误提示
                 self.after(3000, lambda: self.send_error_label.config(text=''))
                 return
@@ -407,21 +408,6 @@ class WorkTab(ttk.Frame):
         else:
             self._append_receive('[错误] 发送失败\n', 'error')
     
-    def _validate_hex_format(self, data):
-        """验证HEX格式是否正确"""
-        # 移除空格和换行
-        hex_str = data.replace(' ', '').replace('\n', '').replace('\r', '')
-        
-        # 检查是否为空
-        if not hex_str:
-            return False
-        
-        # 检查是否都是十六进制字符
-        try:
-            bytes.fromhex(hex_str)
-            return True
-        except ValueError:
-            return False
     
     def _start_loop_send(self):
         """启动循环发送"""

@@ -149,6 +149,28 @@ class WorkPanel(ttk.Frame):
         # 更新高亮显示
         self._update_column_highlight()
     
+    def send_data(self, data, mode):
+        """发送数据到当前工作Tab
+        
+        Args:
+            data: 要发送的数据
+            mode: 发送模式 (TEXT/HEX)
+            
+        Returns:
+            bool: 发送是否成功
+        """
+        work_tab = self.get_current_work_tab()
+        if work_tab:
+            # 设置发送文本
+            work_tab.send_text.delete('1.0', 'end')
+            work_tab.send_text.insert('1.0', data)
+            
+            # 按指定模式发送
+            work_tab._send_data(override_mode=mode)
+            
+            return True
+        return False
+    
     def cleanup(self):
         """清理资源"""
         for column in self.work_columns:
