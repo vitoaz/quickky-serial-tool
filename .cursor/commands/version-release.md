@@ -141,8 +141,12 @@ git log v上一版本..vx.y.z --pretty=format:"%s%n%b" --reverse
 在 `dist/release_notes.md` 创建发布说明文档，包含：
 
 - 版本信息（发布日期、版本号、构建时间）
-- 更新内容（界面优化、Bug修复等）
-- 按类别组织更新内容
+- 更新内容（仅包含程序功能改进）
+
+**重要要求**：
+- 只需要 `## ✨ 更新内容` 部分
+- 使用数字列表简要说明程序功能（如 1.2.3.4.5...）
+- **非程序功能的代码改动不需要提及**（如重构、架构调整、文档更新等）
 
 **模板示例**：
 
@@ -155,60 +159,50 @@ git log v上一版本..vx.y.z --pretty=format:"%s%n%b" --reverse
 
 ## ✨ 更新内容
 
-相比v上一版本，本次更新主要包含以下改进：
-
-### 🎨 界面优化
-
-1. **功能1**
-   - 改进点1
-   - 改进点2
-
-### 🐛 Bug修复
-
-1. **修复项**
-   - 修复内容
+1. 新增功能描述1
+2. 优化功能描述2
+3. 修复问题描述3
+4. 增强功能描述4
+5. 改进功能描述5
 ```
 
-### 步骤7: 推送到远程仓库
+### 步骤7: 合并到master分支
 
-```bash
-# 推送develop分支（如果有版本号提交）
-git push origin develop
-
-# 推送标签
-git push origin vx.y.z
-```
-
-### 步骤8: 合并到master分支
-
-#### 8.1 切换到master分支
+#### 7.1 切换到master分支
 
 ```bash
 git checkout master
 ```
 
-#### 8.2 拉取最新代码
+#### 7.2 拉取最新代码
 
 ```bash
 git pull origin master
 ```
 
-#### 8.3 合并develop分支
+#### 7.3 合并develop分支
 
 ```bash
 git merge develop
 ```
 
-#### 8.4 推送master分支
-
-```bash
-git push origin master
-```
-
-#### 8.5 切换回develop分支
+#### 7.4 切换回develop分支
 
 ```bash
 git checkout develop
+```
+
+### 步骤8: 推送到远程仓库
+
+```bash
+# 推送develop分支（如果有版本号提交）
+git push origin develop
+
+# 推送master分支
+git push origin master
+
+# 推送标签
+git push origin vx.y.z
 ```
 
 ## 📝 注意事项
@@ -217,7 +211,7 @@ git checkout develop
 2. **版本号规范**: 严格遵循语义化版本规范
 3. **提交信息**: 使用文件方式提交避免中文乱码
 4. **标签命名**: 使用 `vx.y.z` 格式（带v前缀）
-5. **发布说明**: 聚焦用户可见的功能改进，简洁明了
+5. **发布说明**: 仅包含程序功能改进，使用数字列表简要说明，忽略代码重构等非功能性改动
 6. **构建验证**: 构建后测试exe文件是否正常运行
 7. **分支管理**: 发布后必须合并到master分支
 
