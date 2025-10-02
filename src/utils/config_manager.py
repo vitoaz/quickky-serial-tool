@@ -212,6 +212,7 @@ class ConfigManager:
     def add_send_history(self, data, mode='TEXT'):
         """
         添加发送历史
+        如果数据和模式与前一条相同，则只更新时间
         
         Args:
             data: 发送的数据
@@ -219,20 +220,32 @@ class ConfigManager:
         """
         from datetime import datetime
         
-        history_item = {
-            'data': data,
-            'mode': mode,
-            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        self.config['send_history'].insert(0, history_item)
+        # 检查是否与最近一条记录相同
+        if (self.config['send_history'] and 
+            len(self.config['send_history']) > 0 and
+            self.config['send_history'][0]['data'] == data and
+            self.config['send_history'][0]['mode'] == mode):
+            # 如果数据和模式相同，只更新时间
+            self.config['send_history'][0]['time'] = current_time
+        else:
+            # 创建新的历史记录
+            history_item = {
+                'data': data,
+                'mode': mode,
+                'time': current_time
+            }
+            
+            self.config['send_history'].insert(0, history_item)
+            
+            # 使用全局设置的历史记录数量限制
+            global_settings = self.get_global_settings()
+            max_history = global_settings.get('send_history_max', 200)
+            
+            if len(self.config['send_history']) > max_history:
+                self.config['send_history'] = self.config['send_history'][:max_history]
         
-        # 使用全局设置的历史记录数量限制
-        global_settings = self.get_global_settings()
-        max_history = global_settings.get('send_history_max', 200)
-        
-        if len(self.config['send_history']) > max_history:
-            self.config['send_history'] = self.config['send_history'][:max_history]
         self.save_config()
     
     def get_send_history(self):

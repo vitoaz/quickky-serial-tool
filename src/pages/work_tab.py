@@ -306,7 +306,7 @@ class WorkTab(ttk.Frame):
             
             # 格式化数据
             if settings['mode'] == 'HEX':
-                formatted_data = ' '.join([f'{b:02X}' for b in data])
+                formatted_data = ' '.join([f'{b:02X}' for b in data]) + ' '
             else:
                 try:
                     formatted_data = data.decode(settings['encoding'].lower().replace('-', ''))
