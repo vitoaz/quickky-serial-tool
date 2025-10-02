@@ -179,32 +179,30 @@ class SerialToolApp(tk.Tk):
         self.work_paned = ttk.PanedWindow(self.work_area_container, orient='horizontal')
         self.work_paned.pack(fill='both', expand=True)
         
-        # 左栏（主栏，始终存在）- 使用Canvas实现边框
+        # 左栏（主栏，始终存在）- 使用Frame实现顶部边框
         self.main_panel_container = tk.Frame(self.work_paned)
         self.work_paned.add(self.main_panel_container, weight=1)
         
-        self.main_panel_border = tk.Canvas(self.main_panel_container, highlightthickness=0, bd=0)
-        self.main_panel_border.pack(fill='both', expand=True)
+        # 顶部边框（4px）- 未激活时透明
+        self.main_panel_top_border = tk.Frame(self.main_panel_container, height=4)
+        self.main_panel_top_border.pack(fill='x', side='top')
         
-        self.main_panel = tk.Frame(self.main_panel_border, bg='white')
-        self.main_panel_window = self.main_panel_border.create_window(1, 1, anchor='nw', window=self.main_panel)
+        self.main_panel = tk.Frame(self.main_panel_container, bg='white')
+        self.main_panel.pack(fill='both', expand=True)
         
         self.work_notebook = self._create_notebook(self.main_panel)
         
-        # 右栏（副栏，根据双栏模式显示/隐藏）- 使用Canvas实现边框
+        # 右栏（副栏，根据双栏模式显示/隐藏）- 使用Frame实现顶部边框
         self.secondary_panel_container = tk.Frame(self.work_paned)
         
-        self.secondary_panel_border = tk.Canvas(self.secondary_panel_container, highlightthickness=0, bd=0)
-        self.secondary_panel_border.pack(fill='both', expand=True)
+        # 顶部边框（4px）- 未激活时透明
+        self.secondary_panel_top_border = tk.Frame(self.secondary_panel_container, height=4)
+        self.secondary_panel_top_border.pack(fill='x', side='top')
         
-        self.secondary_panel = tk.Frame(self.secondary_panel_border, bg='white')
-        self.secondary_panel_window = self.secondary_panel_border.create_window(1, 1, anchor='nw', window=self.secondary_panel)
+        self.secondary_panel = tk.Frame(self.secondary_panel_container, bg='white')
+        self.secondary_panel.pack(fill='both', expand=True)
         
         self.work_notebook_secondary = self._create_notebook(self.secondary_panel)
-        
-        # 绑定Canvas大小变化事件
-        self.main_panel_border.bind('<Configure>', lambda e: self._resize_panel(e, self.main_panel_border, self.main_panel, self.main_panel_window))
-        self.secondary_panel_border.bind('<Configure>', lambda e: self._resize_panel(e, self.secondary_panel_border, self.secondary_panel, self.secondary_panel_window))
         
         # 根据配置决定是否显示副栏
         if self.dual_panel_mode:
@@ -213,14 +211,6 @@ class SerialToolApp(tk.Tk):
         # 设置主栏为默认激活
         self.active_notebook = self.work_notebook
         self._update_panel_highlight()
-    
-    def _resize_panel(self, event, border_canvas, panel_frame, panel_window):
-        """调整面板大小以适应边框"""
-        width = event.width
-        height = event.height
-        # 设置内部frame大小为canvas大小减去边框（2px，左右各1px）
-        border_canvas.itemconfig(panel_window, width=width-2, height=height-2)
-        border_canvas.config(scrollregion=border_canvas.bbox('all'))
     
     def _create_notebook(self, parent):
         """创建一个Notebook控件"""
@@ -363,30 +353,35 @@ class SerialToolApp(tk.Tk):
                 self._add_work_tab(notebook=notebook)
     
     def _update_panel_highlight(self):
-        """更新面板高亮显示"""
+        """更新面板高亮显示 - 只有激活时显示顶部4px边框"""
         # 获取主题颜色
         if hasattr(self, 'theme_manager'):
             colors = self.theme_manager.get_theme_colors()
-            inactive_color = colors.get('border', '#D0D0D0')
+            bg_color = colors.get('labelframe_bg', '#F5F5F5')  # 使用labelframe背景色
             active_color = colors.get('active_border', '#4A90E2')
         else:
-            inactive_color = '#D0D0D0'
+            bg_color = '#F5F5F5'
             active_color = '#4A90E2'
         
         if not self.dual_panel_mode:
-            # 单栏模式使用主题边框色
-            self.main_panel_border.config(bg=inactive_color)
+            # 单栏模式：边框使用背景色（不显示）
+            if hasattr(self, 'main_panel_top_border'):
+                self.main_panel_top_border.config(bg=bg_color)
             return
         
-        # 重置所有面板边框（使用主题边框色）
-        self.main_panel_border.config(bg=inactive_color)
-        self.secondary_panel_border.config(bg=inactive_color)
+        # 双栏模式：重置所有顶部边框为背景色（不显示）
+        if hasattr(self, 'main_panel_top_border'):
+            self.main_panel_top_border.config(bg=bg_color)
+        if hasattr(self, 'secondary_panel_top_border'):
+            self.secondary_panel_top_border.config(bg=bg_color)
         
-        # 高亮激活的面板
+        # 激活面板的顶部边框使用激活色
         if self.active_notebook == self.work_notebook:
-            self.main_panel_border.config(bg=active_color)
+            if hasattr(self, 'main_panel_top_border'):
+                self.main_panel_top_border.config(bg=active_color)
         elif self.active_notebook == self.work_notebook_secondary:
-            self.secondary_panel_border.config(bg=active_color)
+            if hasattr(self, 'secondary_panel_top_border'):
+                self.secondary_panel_top_border.config(bg=active_color)
     
     def _toggle_dual_panel(self):
         """切换双栏模式"""

@@ -42,7 +42,6 @@ python3 -m PyInstaller --onefile --windowed ^
   --icon icon.ico ^
   --add-data "version.py;." ^
   --add-data "icon.png;." ^
-  --add-data "themes;themes" ^
   --paths src ^
   --hidden-import pages.work_tab ^
   --hidden-import components.serial_settings_panel ^
@@ -65,6 +64,17 @@ echo.
 echo [6/7] 清理临时文件和复制资源...
 if exist build rmdir /s /q build
 if exist QSerial.spec del QSerial.spec
+
+REM 确保themes目录在dist下有独立拷贝
+if exist themes (
+    if exist dist (
+        echo [INFO] 拷贝themes目录到dist...
+        xcopy themes dist\themes\ /E /I /Y >nul 2>&1
+        echo [INFO] themes目录已拷贝到dist
+    )
+) else (
+    echo [WARNING] themes目录不存在
+)
 echo.
 
 echo [7/7] 生成发布包...
@@ -73,10 +83,16 @@ for /f "tokens=3 delims= " %%a in ('findstr /C:"VERSION = " version.py') do set 
 set VERSION=%VERSION:"=%
 echo [INFO] Version: %VERSION%
 
-REM 创建压缩包
+REM 创建压缩包（包含exe和themes目录）
 cd dist
 if exist QSerial_v%VERSION%.zip del QSerial_v%VERSION%.zip
-powershell -Command "Compress-Archive -Path QSerial.exe -DestinationPath QSerial_v%VERSION%.zip -Force"
+if exist themes (
+    powershell -Command "Compress-Archive -Path QSerial.exe,themes -DestinationPath QSerial_v%VERSION%.zip -Force"
+    echo [INFO] 压缩包包含: QSerial.exe + themes目录
+) else (
+    powershell -Command "Compress-Archive -Path QSerial.exe -DestinationPath QSerial_v%VERSION%.zip -Force"
+    echo [INFO] 压缩包包含: QSerial.exe（themes已内嵌）
+)
 cd ..
 echo.
 
