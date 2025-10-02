@@ -87,7 +87,7 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
                        command=self._on_setting_changed).grid(row=5, column=0, columnspan=2, sticky='w', pady=2)
         
         # 清除接收按钮
-        clear_btn = tk.Label(self, text='清除接收', fg='blue', cursor='hand2')
+        clear_btn = tk.Label(self, text='清除接收', fg='blue', cursor='hand2', font=('', 9))
         clear_btn.grid(row=6, column=0, columnspan=2, sticky='w', pady=5)
         clear_btn.bind('<Button-1>', self._on_clear_clicked)
         clear_btn.bind('<Enter>', lambda e: clear_btn.config(font=('', 9, 'underline')))
@@ -158,4 +158,19 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
         
         # 更新编码选择状态
         self._on_mode_changed()
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        colors = theme_manager.get_theme_colors()
+        
+        # 应用主题到清除接收按钮（这是tk.Label，不是ttk控件）
+        try:
+            for widget in self.winfo_children():
+                if isinstance(widget, tk.Label) and widget.cget('text') == '清除接收':
+                    widget.configure(
+                        bg=colors.get('labelframe_bg', '#EFEFEF'),
+                        fg=colors.get('link_color', '#0066CC')
+                    )
+        except Exception as e:
+            print(f"应用主题到接收设置面板失败: {e}")
 

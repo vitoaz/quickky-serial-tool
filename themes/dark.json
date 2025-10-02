@@ -1,0 +1,32 @@
+{
+  "name": "Dark",
+  "description": "暗黑主题",
+  "colors": {
+    "background": "#1E1E1E",
+    "foreground": "#D4D4D4",
+    "text_bg": "#1E1E1E",
+    "text_fg": "#D4D4D4",
+    "button_bg": "#3C3C3C",
+    "button_fg": "#E0E0E0",
+    "frame_bg": "#252526",
+    "labelframe_bg": "#252526",
+    "entry_bg": "#3C3C3C",
+    "entry_fg": "#E0E0E0",
+    "selectbackground": "#0E639C",
+    "selectforeground": "#FFFFFF",
+    "border": "#3E3E42",
+    "scrollbar_bg": "#505050",
+    "scrollbar_fg": "#686868",
+    "terminal_bg": "#1E1E1E",
+    "terminal_fg": "#D4D4D4",
+    "active_tab": "#1E1E1E",
+    "inactive_tab": "#2D2D2D",
+    "checkbox_selected": "#0E639C",
+    "link_color": "#4FC3F7",
+    "log_info_color": "#4FC3F7",
+    "log_error_color": "#F48771",
+    "log_success_color": "#A5D6A7",
+    "active_border": "#0E639C"
+  }
+}
+

@@ -20,6 +20,7 @@ from components.quick_commands_panel import QuickCommandsPanel
 from components.send_history_panel import SendHistoryPanel
 from utils.config_manager import ConfigManager
 from utils.file_utils import resource_path
+from utils.theme_manager import ThemeManager
 
 # 导入版本信息
 try:
@@ -54,6 +55,9 @@ class SerialToolApp(tk.Tk):
         # 配置管理器
         self.config_manager = ConfigManager()
         
+        # 主题管理器（传入self作为root窗口）
+        self.theme_manager = ThemeManager(self)
+        
         # 工作Tab列表
         self.work_tabs = []
         self.tab_counter = 1
@@ -63,7 +67,14 @@ class SerialToolApp(tk.Tk):
         
         self._create_menu()
         self._create_widgets()
+        
+        # 在创建Tab之前先加载主题
+        self._load_and_apply_theme()
+        
         self._create_initial_tab()
+        
+        # 再次应用主题确保所有控件都正确
+        self.after(100, self._apply_theme_to_all_widgets)
         
         # 退出处理
         self.protocol('WM_DELETE_WINDOW', self._on_closing)
@@ -92,6 +103,23 @@ class SerialToolApp(tk.Tk):
         self.command_panel_var = tk.BooleanVar(value=self.config_manager.get_command_panel_visible())
         view_menu.add_checkbutton(label='命令面板', variable=self.command_panel_var,
                                   command=self._toggle_command_panel)
+        
+        # 主题子菜单
+        view_menu.add_separator()
+        theme_menu = tk.Menu(view_menu, tearoff=0)
+        view_menu.add_cascade(label='主题', menu=theme_menu)
+        
+        # 获取可用主题并创建单选菜单
+        self.theme_var = tk.StringVar(value=self.config_manager.get_theme())
+        available_themes = self.theme_manager.get_available_themes()
+        
+        for theme_name in available_themes:
+            theme_menu.add_radiobutton(
+                label=theme_name.capitalize(),
+                variable=self.theme_var,
+                value=theme_name,
+                command=lambda t=theme_name: self._change_theme(t)
+            )
         
         # 帮助菜单
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -336,20 +364,29 @@ class SerialToolApp(tk.Tk):
     
     def _update_panel_highlight(self):
         """更新面板高亮显示"""
+        # 获取主题颜色
+        if hasattr(self, 'theme_manager'):
+            colors = self.theme_manager.get_theme_colors()
+            inactive_color = colors.get('border', '#D0D0D0')
+            active_color = colors.get('active_border', '#4A90E2')
+        else:
+            inactive_color = '#D0D0D0'
+            active_color = '#4A90E2'
+        
         if not self.dual_panel_mode:
-            # 单栏模式不需要高亮
-            self.main_panel_border.config(bg='SystemButtonFace')
+            # 单栏模式使用主题边框色
+            self.main_panel_border.config(bg=inactive_color)
             return
         
-        # 重置所有面板边框（灰色）
-        self.main_panel_border.config(bg='gray')
-        self.secondary_panel_border.config(bg='gray')
+        # 重置所有面板边框（使用主题边框色）
+        self.main_panel_border.config(bg=inactive_color)
+        self.secondary_panel_border.config(bg=inactive_color)
         
-        # 高亮激活的面板（蓝色边框）
+        # 高亮激活的面板
         if self.active_notebook == self.work_notebook:
-            self.main_panel_border.config(bg='#4A90E2')
+            self.main_panel_border.config(bg=active_color)
         elif self.active_notebook == self.work_notebook_secondary:
-            self.secondary_panel_border.config(bg='#4A90E2')
+            self.secondary_panel_border.config(bg=active_color)
     
     def _toggle_dual_panel(self):
         """切换双栏模式"""
@@ -446,6 +483,12 @@ class SerialToolApp(tk.Tk):
         
         # 更新Tab标题
         self._update_tab_title_for_notebook(notebook, insert_index, tab_name)
+        
+        # 如果主题已加载，应用主题到新Tab
+        if hasattr(self, 'theme_manager') and self.theme_manager.current_theme:
+            font_size = self.config_manager.get_font_size()
+            # 延迟应用主题，确保控件已完全创建
+            self.after(10, lambda: work_tab.apply_theme(self.theme_manager, font_size))
     
     def _update_tab_title(self, index, title):
         """更新Tab标题"""
@@ -603,6 +646,187 @@ Gitee: https://gitee.com/vitoaaazzz/quickky-serial-tool
 GitHub: https://github.com/vitoaz/quickky-serial-tool"""
         
         messagebox.showinfo('关于', about_text)
+    
+    def _load_and_apply_theme(self):
+        """加载并应用主题"""
+        theme_name = self.config_manager.get_theme()
+        self.theme_manager.load_theme(theme_name)
+        # 先应用ttk样式
+        self.theme_manager.apply_ttk_theme()
+        # 再应用到具体控件
+        self._apply_theme_to_all_widgets()
+        # 应用到菜单栏和标题栏
+        self._apply_theme_to_menu_and_titlebar()
+    
+    def _change_theme(self, theme_name):
+        """切换主题"""
+        self.config_manager.set_theme(theme_name)
+        self.theme_manager.load_theme(theme_name)
+        # 先应用ttk样式
+        self.theme_manager.apply_ttk_theme()
+        # 再应用到具体控件
+        self._apply_theme_to_all_widgets()
+        # 应用到菜单栏和标题栏
+        self._apply_theme_to_menu_and_titlebar()
+    
+    def _apply_theme_to_all_widgets(self):
+        """应用主题到所有控件"""
+        colors = self.theme_manager.get_theme_colors()
+        
+        if not colors:
+            return
+        
+        try:
+            # 应用到主窗口
+            self.configure(bg=colors.get('frame_bg', '#F5F5F5'))
+            
+            # 全局设置按钮手型指针
+            self.option_add('*TButton*cursor', 'hand2')
+            
+            # 应用到主容器
+            if hasattr(self, 'work_area_container'):
+                self.work_area_container.configure(style='TFrame')
+            
+            if hasattr(self, 'right_container'):
+                self.right_container.configure(style='TFrame')
+            
+            # 应用到主面板和副面板
+            if hasattr(self, 'main_panel'):
+                self.main_panel.configure(bg=colors.get('background', '#FFFFFF'))
+            
+            if hasattr(self, 'secondary_panel'):
+                self.secondary_panel.configure(bg=colors.get('background', '#FFFFFF'))
+            
+            # 更新面板边框颜色
+            if hasattr(self, '_update_panel_highlight'):
+                self._update_panel_highlight()
+            
+            # 递归更新所有Frame的背景色
+            self._update_frames_bg(self, colors)
+            
+            # 应用到所有工作Tab
+            font_size = self.config_manager.get_font_size()
+            for work_tab in self.work_tabs:
+                if hasattr(work_tab, 'apply_theme'):
+                    work_tab.apply_theme(self.theme_manager, font_size)
+            
+            # 应用到命令面板
+            if hasattr(self, 'quick_commands_panel'):
+                if hasattr(self.quick_commands_panel, 'apply_theme'):
+                    self.quick_commands_panel.apply_theme(self.theme_manager)
+            
+            if hasattr(self, 'send_history_panel'):
+                if hasattr(self.send_history_panel, 'apply_theme'):
+                    self.send_history_panel.apply_theme(self.theme_manager)
+            
+            # 刷新窗口显示
+            self.update_idletasks()
+            
+        except Exception as e:
+            print(f"应用主题失败: {e}")
+    
+    def _update_frames_bg(self, widget, colors):
+        """递归更新所有Frame背景色"""
+        try:
+            # 尝试配置ttk.Frame
+            if isinstance(widget, ttk.Frame):
+                try:
+                    widget.configure(style='TFrame')
+                except:
+                    pass
+            
+            # 递归处理子控件
+            for child in widget.winfo_children():
+                self._update_frames_bg(child, colors)
+        except:
+            pass
+    
+    def _apply_theme_to_menu_and_titlebar(self):
+        """应用主题到菜单栏和标题栏"""
+        colors = self.theme_manager.get_theme_colors()
+        
+        if not colors:
+            return
+        
+        try:
+            # 配置菜单栏颜色
+            try:
+                menubar = self.nametowidget(self.cget('menu'))
+                if menubar:
+                    menubar.configure(
+                        bg=colors.get('labelframe_bg', '#EFEFEF'),
+                        fg=colors.get('foreground', '#000000'),
+                        activebackground=colors.get('selectbackground', '#0078D7'),
+                        activeforeground=colors.get('selectforeground', '#FFFFFF'),
+                        relief='flat',
+                        bd=0
+                    )
+                    
+                    # 递归配置所有菜单项
+                    self._configure_menu_recursive(menubar, colors)
+            except Exception as e:
+                print(f"配置菜单栏失败: {e}")
+            
+            # Windows 10/11 标题栏深色模式（需要特殊API）
+            try:
+                import ctypes
+                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+                
+                # 检查是否为Dark主题
+                theme_name = self.config_manager.get_theme()
+                if theme_name == 'dark':
+                    # 启用深色标题栏 (Windows 10 build 17763+)
+                    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                    value = ctypes.c_int(1)
+                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd,
+                        DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        ctypes.byref(value),
+                        ctypes.sizeof(value)
+                    )
+                else:
+                    # 禁用深色标题栏
+                    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+                    value = ctypes.c_int(0)
+                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd,
+                        DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        ctypes.byref(value),
+                        ctypes.sizeof(value)
+                    )
+            except Exception as e:
+                print(f"设置标题栏主题失败: {e}")
+                
+        except Exception as e:
+            print(f"应用菜单主题失败: {e}")
+    
+    def _configure_menu_recursive(self, menu, colors):
+        """递归配置菜单颜色"""
+        try:
+            menu.configure(
+                bg=colors.get('labelframe_bg', '#EFEFEF'),
+                fg=colors.get('foreground', '#000000'),
+                activebackground=colors.get('selectbackground', '#0078D7'),
+                activeforeground=colors.get('selectforeground', '#FFFFFF'),
+                selectcolor=colors.get('checkbox_selected', colors.get('selectbackground', '#0078D7')),
+                relief='flat',
+                bd=0
+            )
+            
+            # 处理所有菜单项，包括级联菜单
+            last_index = menu.index('end')
+            if last_index is not None:
+                for i in range(last_index + 1):
+                    try:
+                        menu_type = menu.type(i)
+                        if menu_type == 'cascade':
+                            # 获取子菜单并递归配置
+                            submenu = menu.nametowidget(menu.entrycget(i, 'menu'))
+                            self._configure_menu_recursive(submenu, colors)
+                    except:
+                        pass
+        except Exception as e:
+            print(f"配置菜单项失败: {e}")
     
     def _on_closing(self):
         """关闭应用"""

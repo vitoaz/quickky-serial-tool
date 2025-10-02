@@ -115,4 +115,10 @@ class SendHistoryPanel(ttk.Frame):
     def refresh(self):
         """刷新历史列表"""
         self._load_history()
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        # Treeview等ttk控件的主题需要通过ttk.Style来设置
+        # 这里暂时保留接口，未来可以扩展
+        pass
 

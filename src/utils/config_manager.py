@@ -42,9 +42,11 @@ class ConfigManager:
             "send_history": [],
             "command_panel_visible": True,  # 命令面板显示状态
             "dual_panel_mode": False,  # 双栏模式
+            "theme": "light",  # 当前主题
             "global_settings": {
                 "receive_buffer_size": 10000,  # 数据接收缓冲区大小
-                "send_history_max": 200  # 发送历史最大条数
+                "send_history_max": 200,  # 发送历史最大条数
+                "fontSize": 9  # 接收区域字体大小
             }
         }
     
@@ -291,12 +293,34 @@ class ConfigManager:
         """获取全局设置"""
         default_settings = {
             "receive_buffer_size": 10000,
-            "send_history_max": 200
+            "send_history_max": 200,
+            "fontSize": 9
         }
         return self.config.get('global_settings', default_settings)
     
     def set_global_settings(self, settings):
         """设置全局设置"""
         self.config['global_settings'] = settings
+        self.save_config()
+    
+    def get_theme(self):
+        """获取当前主题"""
+        return self.config.get('theme', 'light')
+    
+    def set_theme(self, theme_name):
+        """设置当前主题"""
+        self.config['theme'] = theme_name
+        self.save_config()
+    
+    def get_font_size(self):
+        """获取字体大小"""
+        global_settings = self.get_global_settings()
+        return global_settings.get('fontSize', 9)
+    
+    def set_font_size(self, size):
+        """设置字体大小"""
+        if 'global_settings' not in self.config:
+            self.config['global_settings'] = self.get_global_settings()
+        self.config['global_settings']['fontSize'] = size
         self.save_config()
 

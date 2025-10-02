@@ -272,6 +272,12 @@ class QuickCommandsPanel(ttk.Frame):
             groups[current_tab]['commands'] = commands
             self.config_manager.set_quick_command_groups(groups)
             self.drag_item = None
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        # Treeview等ttk控件的主题需要通过ttk.Style来设置
+        # 这里暂时保留接口，未来可以扩展
+        pass
 
 class CommandDialog(tk.Toplevel):
     """指令编辑对话框"""

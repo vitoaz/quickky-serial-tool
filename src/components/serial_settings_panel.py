@@ -175,4 +175,10 @@ class SerialSettingsPanel(ttk.LabelFrame):
         self.bytesize_combo.config(state=readonly_state)
         self.stopbits_combo.config(state=readonly_state)
         self.flow_control_combo.config(state=readonly_state)
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        # ttk控件的样式已经通过theme_manager.apply_ttk_theme()统一设置
+        # 这里保留接口，用于未来可能的扩展
+        pass
 
