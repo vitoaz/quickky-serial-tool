@@ -9,6 +9,7 @@ import serial
 import serial.tools.list_ports
 import threading
 from datetime import datetime
+import time
 
 # 串口参数映射
 PARITY_MAP = {
@@ -42,6 +43,7 @@ class SerialManager:
         self.disconnect_callback = None
         self.auto_reconnect = False
         self.last_config = {}
+        self.operation_timeout = 1.0  # 操作超时时间（秒）
     
     @staticmethod
     def get_available_ports():
@@ -70,50 +72,86 @@ class SerialManager:
         Returns:
             bool: 是否成功打开
         """
-        try:
-            # 保存配置用于重连
-            self.last_config = {
-                'port': port,
-                'baudrate': baudrate,
-                'parity': parity,
-                'bytesize': bytesize,
-                'stopbits': stopbits,
-                'flow_control': flow_control
-            }
-            
-            rtscts, xonxoff = FLOW_CONTROL_MAP.get(flow_control, (False, False))
-            
-            self.serial_port = serial.Serial(
-                port=port,
-                baudrate=baudrate,
-                bytesize=bytesize,
-                parity=PARITY_MAP.get(parity, serial.PARITY_NONE),
-                stopbits=STOPBITS_MAP.get(stopbits, serial.STOPBITS_ONE),
-                timeout=0.1,
-                rtscts=rtscts,
-                xonxoff=xonxoff
-            )
-            
-            # 启动接收线程
-            self.is_running = True
-            self.receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
-            self.receive_thread.start()
-            
-            return True
-        except Exception as e:
-            print(f"打开串口失败: {e}")
+        # 使用线程执行打开操作，避免阻塞
+        result = {'success': False, 'error': None}
+        
+        def _open_thread():
+            try:
+                # 保存配置用于重连
+                self.last_config = {
+                    'port': port,
+                    'baudrate': baudrate,
+                    'parity': parity,
+                    'bytesize': bytesize,
+                    'stopbits': stopbits,
+                    'flow_control': flow_control
+                }
+                
+                rtscts, xonxoff = FLOW_CONTROL_MAP.get(flow_control, (False, False))
+                
+                self.serial_port = serial.Serial(
+                    port=port,
+                    baudrate=baudrate,
+                    bytesize=bytesize,
+                    parity=PARITY_MAP.get(parity, serial.PARITY_NONE),
+                    stopbits=STOPBITS_MAP.get(stopbits, serial.STOPBITS_ONE),
+                    timeout=0.1,
+                    write_timeout=self.operation_timeout,  # 写超时
+                    rtscts=rtscts,
+                    xonxoff=xonxoff
+                )
+                
+                # 启动接收线程
+                self.is_running = True
+                self.receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
+                self.receive_thread.start()
+                
+                result['success'] = True
+            except Exception as e:
+                result['error'] = str(e)
+        
+        # 在独立线程中执行打开操作
+        thread = threading.Thread(target=_open_thread, daemon=True)
+        thread.start()
+        thread.join(timeout=self.operation_timeout)
+        
+        if thread.is_alive():
+            # 超时，操作仍在执行
+            print(f"打开串口超时（{self.operation_timeout}秒）")
             return False
+        
+        if not result['success']:
+            print(f"打开串口失败: {result['error']}")
+            return False
+        
+        return True
     
     def close(self):
         """关闭串口"""
         self.is_running = False
         self.auto_reconnect = False
         
+        # 等待接收线程结束
         if self.receive_thread and self.receive_thread.is_alive():
             self.receive_thread.join(timeout=1)
         
-        if self.serial_port and self.serial_port.is_open:
-            self.serial_port.close()
+        # 使用线程执行关闭操作，避免阻塞
+        def _close_thread():
+            try:
+                if self.serial_port and self.serial_port.is_open:
+                    self.serial_port.close()
+            except Exception as e:
+                print(f"关闭串口时出错: {e}")
+            finally:
+                self.serial_port = None
+        
+        thread = threading.Thread(target=_close_thread, daemon=True)
+        thread.start()
+        thread.join(timeout=self.operation_timeout)
+        
+        if thread.is_alive():
+            # 超时，强制置空
+            print(f"关闭串口超时，强制释放")
             self.serial_port = None
     
     def _receive_loop(self):
@@ -121,10 +159,21 @@ class SerialManager:
         while self.is_running:
             try:
                 if self.serial_port and self.serial_port.is_open:
+                    # 使用超时读取，避免阻塞
                     if self.serial_port.in_waiting:
-                        data = self.serial_port.read(self.serial_port.in_waiting)
-                        if self.receive_callback:
-                            self.receive_callback(data)
+                        try:
+                            data = self.serial_port.read(self.serial_port.in_waiting)
+                            if self.receive_callback and data:
+                                self.receive_callback(data)
+                        except serial.SerialTimeoutException:
+                            print("读取数据超时")
+                            continue
+                        except Exception as e:
+                            print(f"读取数据错误: {e}")
+                            raise
+                    else:
+                        # 短暂休眠，避免CPU占用过高
+                        time.sleep(0.01)
                 else:
                     # 串口断开
                     if self.disconnect_callback:
@@ -132,7 +181,7 @@ class SerialManager:
                     
                     if self.auto_reconnect and self.last_config:
                         # 尝试重连
-                        threading.Event().wait(1)  # 等待1秒
+                        time.sleep(1)  # 等待1秒
                         self.open(**self.last_config)
                     else:
                         break
@@ -157,20 +206,40 @@ class SerialManager:
         if not self.serial_port or not self.serial_port.is_open:
             return False
         
-        try:
-            if mode == 'HEX':
-                # HEX模式：将十六进制字符串转为字节
-                hex_str = data.replace(' ', '').replace('\n', '')
-                send_data = bytes.fromhex(hex_str)
-            else:
-                # TEXT模式：按编码转换
-                send_data = data.encode(encoding.lower().replace('-', ''))
-            
-            self.serial_port.write(send_data)
-            return True
-        except Exception as e:
-            print(f"发送数据失败: {e}")
+        result = {'success': False, 'error': None}
+        
+        def _send_thread():
+            try:
+                if mode == 'HEX':
+                    # HEX模式：将十六进制字符串转为字节
+                    hex_str = data.replace(' ', '').replace('\n', '')
+                    send_data = bytes.fromhex(hex_str)
+                else:
+                    # TEXT模式：按编码转换
+                    send_data = data.encode(encoding.lower().replace('-', ''))
+                
+                self.serial_port.write(send_data)
+                result['success'] = True
+            except serial.SerialTimeoutException:
+                result['error'] = "发送超时"
+            except Exception as e:
+                result['error'] = str(e)
+        
+        # 在独立线程中执行发送操作
+        thread = threading.Thread(target=_send_thread, daemon=True)
+        thread.start()
+        thread.join(timeout=self.operation_timeout)
+        
+        if thread.is_alive():
+            # 超时
+            print(f"发送数据超时（{self.operation_timeout}秒）")
             return False
+        
+        if not result['success']:
+            print(f"发送数据失败: {result['error']}")
+            return False
+        
+        return True
     
     def set_receive_callback(self, callback):
         """设置接收回调函数"""
