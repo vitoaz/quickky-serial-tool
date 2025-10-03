@@ -41,7 +41,7 @@ class WorkTab(ttk.Frame):
         self.on_data_sent = on_data_sent
         self.panel_type = panel_type
         self.serial_manager = SerialManager()
-        self.log_file = None
+        self.log_file_path = None  # 日志文件路径，不再持有文件句柄
         self.loop_send_timer = None
         self.theme_manager = None  # 主题管理器将在apply_theme中设置
         
@@ -306,15 +306,12 @@ class WorkTab(ttk.Frame):
         self.serial_manager.close()
         self.connect_btn.config(text='打开串口')
         self.send_btn.config(state='disabled')
+        
+        # 显示关闭信息（日志会自动写入）
         self._append_receive('[信息] 串口已关闭\n', 'info')
         
         # 启用串口设置
         self.serial_settings.set_enabled(True)
-        
-        # 关闭日志文件
-        if self.log_file:
-            self.log_file.close()
-            self.log_file = None
     
     def _on_data_received(self, data):
         """接收到数据"""
@@ -331,21 +328,8 @@ class WorkTab(ttk.Frame):
                 except:
                     formatted_data = str(data)
             
-            # 日志模式
-            if settings['log_mode']:
-                timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + ']'
-                formatted_data = f'{timestamp} {formatted_data}\n'
-            
-            # 显示数据
-            self._append_receive(formatted_data)
-            
-            # 保存日志
-            if settings['save_log'] and self.log_file:
-                try:
-                    self.log_file.write(formatted_data)
-                    self.log_file.flush()
-                except:
-                    pass
+            # 显示数据（时间戳由_append_receive统一处理）
+            self._append_receive(formatted_data, level='normal')
         
         self.after(0, update_ui)
     
@@ -440,12 +424,30 @@ class WorkTab(ttk.Frame):
     
     def _append_receive(self, text, level='normal'):
         """
-        追加接收数据
+        追加接收数据（统一处理显示和日志保存）
         
         Args:
             text: 文本内容
             level: 日志级别 ('normal', 'info', 'error', 'success', 'warning')
         """
+        # 获取接收设置
+        settings = self.receive_settings.get_settings()
+        
+        # 统一处理时间戳
+        display_text = text
+        
+        # 如果开启了日志模式，则添加时间戳
+        if settings['log_mode']:
+            # 检查文本是否已经包含时间戳
+            if not text.startswith('[') or ']:' not in text[:15]:
+                timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
+                display_text = timestamp + text
+                
+                # 确保有换行符
+                if not display_text.endswith('\n'):
+                    display_text += '\n'
+        
+        # 显示文本
         self.receive_text.config(state='normal')
         
         # 根据主题和级别获取对应的颜色
@@ -471,7 +473,15 @@ class WorkTab(ttk.Frame):
         tag_name = f'level_{level}'
         self.receive_text.tag_config(tag_name, foreground=actual_color)
         
-        self.receive_text.insert('end', text, tag_name)
+        self.receive_text.insert('end', display_text, tag_name)
+        
+        # 保存日志（不区分串口是否打开，只要勾选了日志保存就写入）
+        if settings['save_log'] and self.log_file_path:
+            try:
+                with open(self.log_file_path, 'a', encoding='utf-8') as f:
+                    f.write(display_text)
+            except Exception as e:
+                print(f"写入日志文件失败: {e}")
         
         # 检查buffer大小限制
         global_settings = self.config_manager.get_global_settings()
@@ -486,7 +496,6 @@ class WorkTab(ttk.Frame):
             self.receive_text.delete('1.0', f'{lines_to_delete + 1}.0')
         
         # 根据自动滚屏设置决定是否滚动
-        settings = self.receive_settings.get_settings()
         if settings.get('auto_scroll', True):
             self.receive_text.see('end')
         
@@ -507,7 +516,11 @@ class WorkTab(ttk.Frame):
         
         if file_path:
             try:
-                self.log_file = open(file_path, 'w', encoding='utf-8')
+                # 创建日志文件（如果不存在）
+                with open(file_path, 'a', encoding='utf-8') as f:
+                    pass  # 仅创建文件
+                
+                self.log_file_path = file_path
                 self._append_receive(f'[信息] 日志文件: {file_path}\n', 'info')
                 return True
             except Exception as e:
@@ -524,8 +537,7 @@ class WorkTab(ttk.Frame):
         """清理资源"""
         self._stop_loop_send()
         self.serial_manager.close()
-        if self.log_file:
-            self.log_file.close()
+        # 日志文件不需要关闭，因为使用即开即关的方式
     
     def apply_theme(self, theme_manager, font_size=9):
         """
