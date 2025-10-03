@@ -151,7 +151,18 @@ class SerialSettingsPanel(ttk.LabelFrame):
         self.baudrate_var.set(str(config.get('baudrate', 115200)))
         self.parity_var.set(config.get('parity', 'None'))
         self.bytesize_var.set(str(config.get('bytesize', 8)))
-        self.stopbits_var.set(str(config.get('stopbits', 1)))
+        
+        # 停止位特殊处理：如果是整数则不显示小数点
+        stopbits = config.get('stopbits', 1)
+        if isinstance(stopbits, (int, float)):
+            # 如果是整数值，则不显示小数部分
+            if stopbits == int(stopbits):
+                self.stopbits_var.set(str(int(stopbits)))
+            else:
+                self.stopbits_var.set(str(stopbits))
+        else:
+            self.stopbits_var.set(str(stopbits))
+        
         self.flow_control_var.set(config.get('flow_control', 'None'))
     
     def get_current_port(self):
