@@ -45,6 +45,11 @@ class WorkTab(ttk.Frame):
         self.loop_send_timer = None
         self.theme_manager = None  # 主题管理器将在apply_theme中设置
         
+        # 自动重连相关
+        self.auto_reconnect_enabled = False  # 是否启用自动重连
+        self.reconnect_timer = None  # 重连定时器
+        self.reconnect_interval = 5.0  # 重连间隔（秒）
+        
         # 延迟创建控件，减少Tab切换时的刷新
         self.after(1, self._init_ui)
     
@@ -210,11 +215,16 @@ class WorkTab(ttk.Frame):
     
     def _on_receive_config_changed(self, settings):
         """接收配置变化"""
-        # 更新自动重连设置
-        self.serial_manager.set_auto_reconnect(settings['auto_reconnect'])
+        # 更新串口自动重连设置
+        old_auto_reconnect = self.auto_reconnect_enabled
+        self.auto_reconnect_enabled = settings['auto_reconnect']
+        
+        # 如果从启用变为禁用，停止自动重连
+        if old_auto_reconnect and not self.auto_reconnect_enabled:
+            self._stop_auto_reconnect()
     
     def _on_save_log_checked(self):
-        """保存日志勾选时的回调"""
+        """保存日志文件勾选时的回调"""
         # 弹出文件选择对话框
         return self._select_log_file()
     
@@ -299,10 +309,15 @@ class WorkTab(ttk.Frame):
             self.serial_settings.set_enabled(False)
         else:
             self._append_receive(f'[错误] 打开串口失败: {port}\n', 'error')
+            
+            # 如果启用了自动重连，开始自动重连
+            if self.auto_reconnect_enabled:
+                self._start_auto_reconnect()
     
     def _disconnect(self):
         """断开串口"""
         self._stop_loop_send()
+        self._stop_auto_reconnect()  # 停止自动重连
         self.serial_manager.close()
         self.connect_btn.config(text='打开串口')
         self.send_btn.config(state='disabled')
@@ -335,7 +350,17 @@ class WorkTab(ttk.Frame):
     
     def _on_disconnected(self):
         """串口断开"""
-        self.after(0, lambda: self._append_receive('[警告] 串口已断开\n', 'warning'))
+        def handle_disconnect():
+            self._append_receive('[警告] 串口已断开\n', 'warning')
+            self.connect_btn.config(text='打开串口')
+            self.send_btn.config(state='disabled')
+            self.serial_settings.set_enabled(True)
+            
+            # 如果启用了自动重连，开始重连
+            if self.auto_reconnect_enabled:
+                self._start_auto_reconnect()
+        
+        self.after(0, handle_disconnect)
     
     def _toggle_send(self):
         """切换发送/取消循环发送"""
@@ -475,7 +500,7 @@ class WorkTab(ttk.Frame):
         
         self.receive_text.insert('end', display_text, tag_name)
         
-        # 保存日志（不区分串口是否打开，只要勾选了日志保存就写入）
+        # 保存日志文件（不区分串口是否打开，只要勾选了保存日志文件就写入）
         if settings['save_log'] and self.log_file_path:
             try:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:
@@ -495,7 +520,7 @@ class WorkTab(ttk.Frame):
             lines_to_delete = current_lines - max_lines
             self.receive_text.delete('1.0', f'{lines_to_delete + 1}.0')
         
-        # 根据自动滚屏设置决定是否滚动
+        # 根据接收自动滚屏设置决定是否滚动
         if settings.get('auto_scroll', True):
             self.receive_text.see('end')
         
@@ -533,11 +558,79 @@ class WorkTab(ttk.Frame):
         if self.on_widget_click:
             self.on_widget_click(self)
     
+    def _start_auto_reconnect(self):
+        """开始自动重连"""
+        # 停止之前的定时器
+        self._stop_auto_reconnect()
+        
+        # 5秒后开始第一次重连尝试（不立即尝试，避免重复日志）
+        self.reconnect_timer = self.after(int(self.reconnect_interval * 1000), self._try_reconnect)
+    
+    def _stop_auto_reconnect(self):
+        """停止自动重连"""
+        if self.reconnect_timer:
+            self.after_cancel(self.reconnect_timer)
+            self.reconnect_timer = None
+    
+    def _try_reconnect(self):
+        """尝试重连"""
+        # 如果自动重连未启用，停止
+        if not self.auto_reconnect_enabled:
+            self._stop_auto_reconnect()
+            return
+        
+        # 如果已经连接，停止重连
+        if self.serial_manager.is_open():
+            self._stop_auto_reconnect()
+            return
+        
+        # 尝试连接
+        port = self.serial_settings.get_current_port()
+        if not port:
+            self._append_receive('[错误] 自动重连失败: 未选择串口\n', 'error')
+            # 继续定时重试
+            self.reconnect_timer = self.after(int(self.reconnect_interval * 1000), self._try_reconnect)
+            return
+        
+        settings = self.serial_settings.get_settings()
+        
+        if self.serial_manager.open(
+            port=port,
+            baudrate=settings['baudrate'],
+            parity=settings['parity'],
+            bytesize=settings['bytesize'],
+            stopbits=settings['stopbits'],
+            flow_control=settings['flow_control']
+        ):
+            # 连接成功
+            self.connect_btn.config(text='关闭串口')
+            self.send_btn.config(state='normal')
+            self._append_receive(f'[信息] 自动重连成功: {port}\n', 'success')
+            self.serial_settings.set_enabled(False)
+            # 停止重连定时器
+            self._stop_auto_reconnect()
+        else:
+            # 连接失败，继续定时重试
+            self._append_receive(f'[错误] 自动重连失败: {port}，{int(self.reconnect_interval)}秒后重试\n', 'error')
+            # 继续定时重试
+            self.reconnect_timer = self.after(int(self.reconnect_interval * 1000), self._try_reconnect)
+    
     def cleanup(self):
         """清理资源"""
-        self._stop_loop_send()
-        self.serial_manager.close()
-        # 日志文件不需要关闭，因为使用即开即关的方式
+        try:
+            # 停止循环发送
+            self._stop_loop_send()
+            
+            # 停止自动重连
+            self._stop_auto_reconnect()
+            
+            # 关闭串口连接
+            if self.serial_manager:
+                self.serial_manager.close()
+            
+            # 日志文件不需要关闭，因为使用即开即关的方式
+        except Exception as e:
+            print(f"清理Tab资源时出错: {e}")
     
     def apply_theme(self, theme_manager, font_size=9):
         """

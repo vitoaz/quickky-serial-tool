@@ -20,7 +20,7 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
             config_manager: 配置管理器
             on_change_callback: 配置变化回调函数
             on_clear_callback: 清除接收回调函数
-            on_save_log_callback: 保存日志勾选回调函数
+            on_save_log_callback: 保存日志文件勾选回调函数
         """
         super().__init__(parent, text='接收设置', padding=(8, 5))
         self.config_manager = config_manager
@@ -68,21 +68,21 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
                        variable=self.log_mode_var,
                        command=self._on_setting_changed).grid(row=2, column=0, columnspan=2, sticky='w', pady=2)
         
-        # 保存日志
+        # 保存日志文件
         self.save_log_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(self, text='保存日志', 
+        ttk.Checkbutton(self, text='保存日志文件', 
                        variable=self.save_log_var,
                        command=self._on_save_log_changed).grid(row=3, column=0, columnspan=2, sticky='w', pady=2)
         
-        # 自动重连
+        # 串口自动重连
         self.auto_reconnect_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(self, text='自动重连', 
+        ttk.Checkbutton(self, text='串口自动重连', 
                        variable=self.auto_reconnect_var,
                        command=self._on_setting_changed).grid(row=4, column=0, columnspan=2, sticky='w', pady=2)
         
-        # 自动滚屏
+        # 接收自动滚屏
         self.auto_scroll_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(self, text='自动滚屏', 
+        ttk.Checkbutton(self, text='接收自动滚屏', 
                        variable=self.auto_scroll_var,
                        command=self._on_setting_changed).grid(row=5, column=0, columnspan=2, sticky='w', pady=2)
         
@@ -119,8 +119,8 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
                 self.on_change_callback(settings)
     
     def _on_save_log_changed(self):
-        """保存日志变化事件"""
-        # 如果勾选了保存日志，触发回调
+        """保存日志文件变化事件"""
+        # 如果勾选了保存日志文件，触发回调
         if self.save_log_var.get() and self.on_save_log_callback:
             if not self.on_save_log_callback():
                 # 如果回调返回False（用户取消），取消勾选

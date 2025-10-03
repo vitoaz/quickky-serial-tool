@@ -41,7 +41,6 @@ class SerialManager:
         self.is_running = False
         self.receive_callback = None
         self.disconnect_callback = None
-        self.auto_reconnect = False
         self.last_config = {}
         self.operation_timeout = 1.0  # 操作超时时间（秒）
     
@@ -129,7 +128,6 @@ class SerialManager:
     def close(self):
         """关闭串口"""
         self.is_running = False
-        self.auto_reconnect = False
         
         # 等待接收线程结束
         if self.receive_thread and self.receive_thread.is_alive():
@@ -175,16 +173,10 @@ class SerialManager:
                         # 短暂休眠，避免CPU占用过高
                         time.sleep(0.01)
                 else:
-                    # 串口断开
+                    # 串口断开，通知回调
                     if self.disconnect_callback:
                         self.disconnect_callback()
-                    
-                    if self.auto_reconnect and self.last_config:
-                        # 尝试重连
-                        time.sleep(1)  # 等待1秒
-                        self.open(**self.last_config)
-                    else:
-                        break
+                    break
             except Exception as e:
                 print(f"接收数据错误: {e}")
                 if self.disconnect_callback:
@@ -248,10 +240,6 @@ class SerialManager:
     def set_disconnect_callback(self, callback):
         """设置断开连接回调函数"""
         self.disconnect_callback = callback
-    
-    def set_auto_reconnect(self, enable):
-        """设置自动重连"""
-        self.auto_reconnect = enable
     
     def is_open(self):
         """检查串口是否打开"""

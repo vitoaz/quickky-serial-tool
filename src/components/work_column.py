@@ -188,9 +188,9 @@ class WorkColumn(tk.Frame):
         if len(self.work_tabs) <= 1:
             return
         
-        # 关闭串口连接
-        if hasattr(tab_widget, 'serial_manager') and tab_widget.serial_manager.is_open():
-            tab_widget._disconnect()
+        # 清理Tab资源（包括串口连接、定时器等）
+        if hasattr(tab_widget, 'cleanup'):
+            tab_widget.cleanup()
         
         # 获取Tab在notebook中的索引
         try:
@@ -210,8 +210,9 @@ class WorkColumn(tk.Frame):
         if tab_widget in self.work_tabs:
             self.work_tabs.remove(tab_widget)
         
-        # 最后删除Tab
+        # 最后删除Tab并销毁widget
         self.notebook.forget(tab_index)
+        tab_widget.destroy()  # 确保widget被销毁
     
     def get_current_tab(self):
         """获取当前选中的工作Tab"""
