@@ -246,7 +246,8 @@ class ThemeManager:
             
             # 配置ttk.Frame样式
             self.style.configure('TFrame', 
-                               background=colors.get('frame_bg', '#F5F5F5'))
+                               background=colors.get('frame_bg', '#F5F5F5'),
+                               bordercolor=colors.get('border', '#D0D0D0'))
             self.style.configure('WorkTab.TFrame', 
                                background=colors.get('background', '#FFFFFF'))
             

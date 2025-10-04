@@ -155,6 +155,32 @@ class WorkTab(ttk.Frame):
         self.send_btn = ttk.Button(send_btn_frame, text='发送', command=self._toggle_send, state='disabled')
         self.send_btn.pack(side='right')
         
+        # 数据统计栏（使用ttk.Frame避免LabelFrame的标签区域间隙）
+        stats_frame = ttk.Frame(right_pane, relief='solid', borderwidth=1)
+        stats_frame.pack(fill='x', pady=(2, 0))
+        
+        # 内部容器（右对齐）
+        stats_inner = ttk.Frame(stats_frame)
+        stats_inner.pack(side='right', padx=5, pady=5)
+        
+        # 复位计数按钮（Label形式，最右侧）
+        self.reset_count_label = tk.Label(stats_inner, text='复位计数', fg='blue', 
+                                          cursor='hand2', font=('', 9))
+        self.reset_count_label.pack(side='right', padx=(15, 0))
+        self.reset_count_label.bind('<Button-1>', self._reset_count)
+        self.reset_count_label.bind('<Enter>', lambda e: self.reset_count_label.config(font=('', 9, 'underline')))
+        self.reset_count_label.bind('<Leave>', lambda e: self.reset_count_label.config(font=('', 9)))
+        
+        # TX计数
+        self.tx_count = 0
+        self.tx_count_label = tk.Label(stats_inner, text='TX: 0', font=('', 9), anchor='e')
+        self.tx_count_label.pack(side='right', padx=(0, 0))
+        
+        # RX计数
+        self.rx_count = 0
+        self.rx_count_label = tk.Label(stats_inner, text='RX: 0', font=('', 9), anchor='e')
+        self.rx_count_label.pack(side='right', padx=(0, 15))
+        
         # 循环发送状态
         self.is_loop_sending = False
     
@@ -334,6 +360,10 @@ class WorkTab(ttk.Frame):
         def update_ui():
             settings = self.receive_settings.get_settings()
             
+            # 更新RX计数
+            self.rx_count += len(data)
+            self.rx_count_label.config(text=f'RX: {self.rx_count}')
+            
             # 格式化数据
             if settings['mode'] == 'HEX':
                 formatted_data = ' '.join([f'{b:02X}' for b in data]) + ' '
@@ -400,8 +430,23 @@ class WorkTab(ttk.Frame):
         # 清除错误提示
         self.send_error_label.config(text='')
         
+        # 计算发送的字节数
+        byte_count = 0
+        if send_mode == 'HEX':
+            # HEX模式：移除空格和换行，每2个字符代表1个字节
+            hex_str = data.replace(' ', '').replace('\n', '').replace('\r', '')
+            byte_count = len(hex_str) // 2
+        else:
+            # TEXT模式：按编码计算字节数
+            encoding = self.receive_settings.get_settings()['encoding'].lower().replace('-', '')
+            byte_count = len(data.encode(encoding))
+        
         if self.serial_manager.send(data, send_mode, 
                                     self.receive_settings.get_settings()['encoding']):
+            # 更新TX计数
+            self.tx_count += byte_count
+            self.tx_count_label.config(text=f'TX: {self.tx_count}')
+            
             # 添加到发送历史（带模式和时间）
             self.config_manager.add_send_history(data, send_mode)
             
@@ -558,6 +603,13 @@ class WorkTab(ttk.Frame):
         if self.on_widget_click:
             self.on_widget_click(self)
     
+    def _reset_count(self, event=None):
+        """复位计数"""
+        self.rx_count = 0
+        self.tx_count = 0
+        self.rx_count_label.config(text='RX: 0')
+        self.tx_count_label.config(text='TX: 0')
+    
     def _start_auto_reconnect(self):
         """开始自动重连"""
         # 停止之前的定时器
@@ -693,6 +745,25 @@ class WorkTab(ttk.Frame):
                 self.send_error_label.configure(
                     bg=colors.get('frame_bg', '#F5F5F5'),
                     fg=colors.get('log_error_color', '#D32F2F')
+                )
+            
+            # 应用到统计栏（ttk控件会自动应用主题，只需设置tk.Label）
+            if hasattr(self, 'rx_count_label'):
+                self.rx_count_label.configure(
+                    bg=colors.get('labelframe_bg', '#EFEFEF'),
+                    fg=colors.get('text_fg', '#000000')
+                )
+            
+            if hasattr(self, 'tx_count_label'):
+                self.tx_count_label.configure(
+                    bg=colors.get('labelframe_bg', '#EFEFEF'),
+                    fg=colors.get('text_fg', '#000000')
+                )
+            
+            if hasattr(self, 'reset_count_label'):
+                self.reset_count_label.configure(
+                    bg=colors.get('labelframe_bg', '#EFEFEF'),
+                    fg=colors.get('link_color', '#0066CC')
                 )
         
         except Exception as e:
