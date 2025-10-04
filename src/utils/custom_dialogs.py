@@ -153,5 +153,5 @@ class InfoDialog(tk.Toplevel):
             theme_manager: 主题管理器
         """
         dialog = InfoDialog(parent, title, message, theme_manager)
-        DialogUtils.show_modal_dialog(dialog, parent, 450, 300)
+        DialogUtils.show_modal_dialog(dialog, parent, 380, 320)
         dialog.wait_window()
