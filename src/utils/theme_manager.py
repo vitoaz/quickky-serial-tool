@@ -317,12 +317,23 @@ class ThemeManager:
                                arrowcolor=colors.get('foreground', '#000000'),
                                selectbackground=colors.get('selectbackground', '#0078D7'),
                                selectforeground=colors.get('selectforeground', '#FFFFFF'))
+            # 计算禁用状态的颜色（更灰暗）
+            disabled_bg = self._calculate_disabled_color(colors.get('entry_bg', '#FFFFFF'))
+            disabled_fg = self._calculate_disabled_color(colors.get('entry_fg', '#000000'))
+            
             self.style.map('TCombobox',
-                         fieldbackground=[('readonly', colors.get('entry_bg', '#FFFFFF'))],
+                         fieldbackground=[
+                             ('disabled', disabled_bg),
+                             ('readonly', colors.get('entry_bg', '#FFFFFF'))
+                         ],
                          selectbackground=[('readonly', colors.get('entry_bg', '#FFFFFF'))],
                          selectforeground=[('readonly', colors.get('entry_fg', '#000000'))],
+                         foreground=[('disabled', disabled_fg)],
                          background=[('active', colors.get('button_bg', '#F0F0F0'))],
-                         arrowcolor=[('active', colors.get('selectbackground', '#0078D7'))])
+                         arrowcolor=[
+                             ('disabled', disabled_fg),
+                             ('active', colors.get('selectbackground', '#0078D7'))
+                         ])
             
             # 配置ttk.Entry样式
             self.style.configure('TEntry',
@@ -463,4 +474,49 @@ class ThemeManager:
         except:
             # 出错时返回默认值
             return bg_color if bg_color.startswith('#') else f'#{bg_color}'
+    
+    def _calculate_disabled_color(self, color):
+        """
+        计算disabled状态的颜色（灰化处理）
+        
+        Args:
+            color: 原始颜色（hex格式）
+        
+        Returns:
+            disabled颜色（hex格式）
+        """
+        try:
+            # 移除#号
+            if color.startswith('#'):
+                color = color[1:]
+            
+            # 转换为RGB
+            r = int(color[0:2], 16)
+            g = int(color[2:4], 16)
+            b = int(color[4:6], 16)
+            
+            # 计算亮度
+            brightness = (r * 299 + g * 587 + b * 114) / 1000
+            
+            if brightness > 128:
+                # 亮色：稍微变暗变灰
+                factor = 0.85
+            else:
+                # 暗色：稍微变亮变灰
+                factor = 1.15
+            
+            # 计算新颜色并增加灰度
+            new_r = max(0, min(255, int(r * factor)))
+            new_g = max(0, min(255, int(g * factor)))
+            new_b = max(0, min(255, int(b * factor)))
+            
+            # 增加灰度（混合40%的灰色）
+            gray = int((new_r + new_g + new_b) / 3)
+            new_r = int(new_r * 0.6 + gray * 0.4)
+            new_g = int(new_g * 0.6 + gray * 0.4)
+            new_b = int(new_b * 0.6 + gray * 0.4)
+            
+            return f'#{new_r:02X}{new_g:02X}{new_b:02X}'
+        except:
+            return color
 
