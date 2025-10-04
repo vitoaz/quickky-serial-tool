@@ -118,16 +118,17 @@ class QuickCommandsPanel(ttk.Frame):
         """显示指令右键菜单"""
         tree = event.widget
         menu = tk.Menu(self, tearoff=0)
-        menu.add_command(label='添加指令', command=lambda: self._add_command(tree))
         
         # 检查是否点击在项目上
         item = tree.identify_row(event.y)
         if item:
             tree.selection_set(item)
-            menu.add_separator()
+            menu.add_command(label='发送', command=lambda: self._send_command(tree))
             menu.add_command(label='编辑指令', command=lambda: self._edit_command(tree))
             menu.add_command(label='删除指令', command=lambda: self._delete_command(tree))
+            menu.add_separator()
         
+        menu.add_command(label='添加指令', command=lambda: self._add_command(tree))
         menu.post(event.x_root, event.y_root)
     
     def _add_group(self):
@@ -237,6 +238,17 @@ class QuickCommandsPanel(ttk.Frame):
             self.config_manager.set_quick_command_groups(groups)
             self._load_groups()
             self.group_notebook.select(current_tab)
+    
+    def _send_command(self, tree):
+        """发送指令"""
+        selection = tree.selection()
+        if selection and self.main_window:
+            item = tree.item(selection[0])
+            values = item['values']
+            command = values[2]  # 内容在第3列
+            mode = values[1]      # 模式在第2列
+            # 直接通过主窗口发送指令
+            self._send_quick_command(command, mode)
     
     def _on_double_click(self, event):
         """双击发送指令"""

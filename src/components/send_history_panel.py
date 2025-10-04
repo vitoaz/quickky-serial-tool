@@ -85,6 +85,14 @@ class SendHistoryPanel(ttk.Frame):
     def _show_menu(self, event):
         """显示右键菜单"""
         menu = tk.Menu(self, tearoff=0)
+        
+        # 检查是否点击在项目上
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+            menu.add_command(label='发送', command=self._send_selected)
+            menu.add_separator()
+        
         menu.add_command(label='清空历史', command=self._clear_history)
         menu.post(event.x_root, event.y_root)
     
@@ -95,6 +103,20 @@ class SendHistoryPanel(ttk.Frame):
                                    '确定要清空所有发送历史吗？', theme_manager):
             self.config_manager.clear_send_history()
             self._load_history()
+    
+    def _send_selected(self):
+        """发送选中的历史记录"""
+        selection = self.tree.selection()
+        if selection and self.main_window:
+            item = self.tree.item(selection[0])
+            values = item['values']
+            tags = item['tags']
+            
+            mode = values[1]      # 模式在第2列
+            data = tags[1]        # 完整数据保存在tags中
+            
+            # 直接通过主窗口发送
+            self._send_from_history(data, mode)
     
     def _on_double_click(self, event):
         """双击发送"""
