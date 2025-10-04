@@ -29,7 +29,9 @@ class MainWindow(tk.Tk):
         super().__init__()
         
         self.title(AppInfo.get_window_title())
-        self.geometry('1024x600')
+        
+        # 窗口居中显示
+        self._center_window(1200, 700)
         
         # 设置窗口图标
         self._setup_icon()
@@ -53,6 +55,22 @@ class MainWindow(tk.Tk):
         
         # 退出处理
         self.protocol('WM_DELETE_WINDOW', self._on_closing)
+    
+    def _center_window(self, width, height):
+        """将窗口居中显示"""
+        # 获取屏幕宽度和高度
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        # 计算窗口左上角坐标，垂直方向稍微偏上（减去高度的8%）
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2 - int(height * 0.08)
+        
+        # 确保窗口不超出屏幕顶部
+        y = max(20, y)
+        
+        # 设置窗口位置
+        self.geometry(f'{width}x{height}+{x}+{y}')
     
     def _setup_icon(self):
         """设置窗口图标"""

@@ -85,7 +85,7 @@ class WorkTab(ttk.Frame):
         
         # 连接/断开按钮（放在串口设置下面）
         btn_frame = ttk.Frame(left_pane)
-        btn_frame.pack(fill='x', padx=10, pady=3)
+        btn_frame.pack(fill='x', padx=10, pady=1)
         
         self.connect_btn = ttk.Button(btn_frame, text='打开串口', command=self._toggle_connection)
         self.connect_btn.pack(fill='x')
@@ -95,13 +95,13 @@ class WorkTab(ttk.Frame):
                                                      on_change_callback=self._on_receive_config_changed,
                                                      on_clear_callback=self._clear_receive,
                                                      on_save_log_callback=self._on_save_log_checked)
-        self.receive_settings.pack(fill='x', pady=3)
+        self.receive_settings.pack(fill='x', pady=2)
         
         # 发送设置
         self.send_settings = SendSettingsPanel(left_pane, self.config_manager,
                                                on_change_callback=self._on_send_config_changed,
                                                on_mode_change_callback=self._on_send_mode_changed)
-        self.send_settings.pack(fill='x', pady=3)
+        self.send_settings.pack(fill='x', pady=2)
         
         # 右侧数据区
         # 接收区

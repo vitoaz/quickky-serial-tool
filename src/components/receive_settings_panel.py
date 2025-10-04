@@ -34,10 +34,10 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
     def _create_widgets(self):
         """创建控件"""
         # 模式选择
-        ttk.Label(self, text='模式:').grid(row=0, column=0, sticky='w', pady=2)
+        ttk.Label(self, text='模式:').grid(row=0, column=0, sticky='w', pady=0)
         
         mode_frame = ttk.Frame(self)
-        mode_frame.grid(row=0, column=1, sticky='w', pady=2)
+        mode_frame.grid(row=0, column=1, sticky='w', pady=0)
         
         self.mode_var = tk.StringVar(value='TEXT')
         ttk.Radiobutton(mode_frame, text='TEXT', variable=self.mode_var, 
@@ -46,10 +46,10 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
                        value='HEX', command=self._on_mode_changed).pack(side='left', padx=5)
         
         # 编码选择
-        ttk.Label(self, text='编码:').grid(row=1, column=0, sticky='w', pady=2)
+        ttk.Label(self, text='编码:').grid(row=1, column=0, sticky='w', pady=0)
         
         encoding_frame = ttk.Frame(self)
-        encoding_frame.grid(row=1, column=1, sticky='w', pady=2)
+        encoding_frame.grid(row=1, column=1, sticky='w', pady=0)
         
         self.encoding_var = tk.StringVar(value='UTF-8')
         self.encoding_utf8_radio = ttk.Radiobutton(encoding_frame, text='UTF-8', 
@@ -66,29 +66,29 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
         self.log_mode_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(self, text='日志模式显示', 
                        variable=self.log_mode_var,
-                       command=self._on_setting_changed).grid(row=2, column=0, columnspan=2, sticky='w', pady=2)
+                       command=self._on_setting_changed).grid(row=2, column=0, columnspan=2, sticky='w', pady=0)
         
         # 保存日志文件
         self.save_log_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(self, text='保存日志文件', 
                        variable=self.save_log_var,
-                       command=self._on_save_log_changed).grid(row=3, column=0, columnspan=2, sticky='w', pady=2)
+                       command=self._on_save_log_changed).grid(row=3, column=0, columnspan=2, sticky='w', pady=0)
         
         # 串口自动重连
         self.auto_reconnect_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(self, text='串口自动重连', 
                        variable=self.auto_reconnect_var,
-                       command=self._on_setting_changed).grid(row=4, column=0, columnspan=2, sticky='w', pady=2)
+                       command=self._on_setting_changed).grid(row=4, column=0, columnspan=2, sticky='w', pady=0)
         
         # 接收自动滚屏
         self.auto_scroll_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(self, text='接收自动滚屏', 
                        variable=self.auto_scroll_var,
-                       command=self._on_setting_changed).grid(row=5, column=0, columnspan=2, sticky='w', pady=2)
+                       command=self._on_setting_changed).grid(row=5, column=0, columnspan=2, sticky='w', pady=0)
         
         # 清除接收按钮
         clear_btn = tk.Label(self, text='清除接收', fg='blue', cursor='hand2', font=('', 9))
-        clear_btn.grid(row=6, column=0, columnspan=2, sticky='w', pady=5)
+        clear_btn.grid(row=6, column=0, columnspan=2, sticky='w', pady=(3, 0))
         clear_btn.bind('<Button-1>', self._on_clear_clicked)
         clear_btn.bind('<Enter>', lambda e: clear_btn.config(font=('', 9, 'underline')))
         clear_btn.bind('<Leave>', lambda e: clear_btn.config(font=('', 9)))

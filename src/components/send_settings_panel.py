@@ -32,10 +32,10 @@ class SendSettingsPanel(ttk.LabelFrame):
     def _create_widgets(self):
         """创建控件"""
         # 模式选择
-        ttk.Label(self, text='模式:').grid(row=0, column=0, sticky='w', pady=2)
+        ttk.Label(self, text='模式:').grid(row=0, column=0, sticky='w', pady=0)
         
         mode_frame = ttk.Frame(self)
-        mode_frame.grid(row=0, column=1, sticky='w', pady=2)
+        mode_frame.grid(row=0, column=1, sticky='w', pady=0)
         
         self.mode_var = tk.StringVar(value='TEXT')
         ttk.Radiobutton(mode_frame, text='TEXT', variable=self.mode_var, 
@@ -45,7 +45,7 @@ class SendSettingsPanel(ttk.LabelFrame):
         
         # 循环发送
         loop_frame = ttk.Frame(self)
-        loop_frame.grid(row=1, column=0, columnspan=2, sticky='w', pady=2)
+        loop_frame.grid(row=1, column=0, columnspan=2, sticky='w', pady=0)
         
         self.loop_send_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(loop_frame, text='循环发送', 
