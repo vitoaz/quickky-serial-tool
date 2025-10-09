@@ -279,9 +279,6 @@ class MainWindow(tk.Tk):
             if hasattr(self, 'command_panel'):
                 self.command_panel.apply_theme(self.theme_manager)
             
-            # 刷新窗口显示
-            self.update_idletasks()
-            
         except Exception as e:
             print(f"应用主题失败: {e}")
     
@@ -307,42 +304,17 @@ class MainWindow(tk.Tk):
         
         if not colors:
             return
+
+        try:
+            # 应用主题到标题栏
+            self.theme_manager.apply_titlebar_theme(self)
+        except Exception as e:
+            print(f"应用标题栏主题失败: {e}")
         
         try:
             # 应用主题到自定义菜单栏
             if hasattr(self, 'custom_menubar'):
                 self.custom_menubar.apply_theme(colors)
-            
-            # Windows 10/11 标题栏深色模式（需要特殊API）
-            try:
-                import ctypes
-                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-                
-                # 检查是否为Dark主题
-                theme_name = self.config_manager.get_theme()
-                if theme_name == 'dark':
-                    # 启用深色标题栏 (Windows 10 build 17763+)
-                    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                    value = ctypes.c_int(1)
-                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                        hwnd,
-                        DWMWA_USE_IMMERSIVE_DARK_MODE,
-                        ctypes.byref(value),
-                        ctypes.sizeof(value)
-                    )
-                else:
-                    # 禁用深色标题栏
-                    DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                    value = ctypes.c_int(0)
-                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                        hwnd,
-                        DWMWA_USE_IMMERSIVE_DARK_MODE,
-                        ctypes.byref(value),
-                        ctypes.sizeof(value)
-                    )
-            except Exception as e:
-                print(f"设置标题栏主题失败: {e}")
-                
         except Exception as e:
             print(f"应用菜单主题失败: {e}")
     

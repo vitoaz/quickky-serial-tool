@@ -25,13 +25,12 @@ class TTKPanedWindowMinSize:
         self.orientation = orientation
         self.min_sizes = {}  # 存储每个面板的最小尺寸
         self.panels = []     # 存储面板引用
+        self.last_size = 0   # 记录上次的尺寸，避免不必要的检查
         
         # 绑定配置事件
         self.paned_window.bind('<Configure>', self._on_configure)
         # 绑定按钮释放事件（分割线拖拽结束）
         self.paned_window.bind('<ButtonRelease-1>', self._on_sash_drag_end)
-        # 绑定映射事件（窗口显示完成）
-        self.paned_window.bind('<Map>', self._on_map)
     
     def add_panel(self, panel, min_size=None, **kwargs):
         """
@@ -113,12 +112,9 @@ class TTKPanedWindowMinSize:
         """分割线拖拽结束事件处理"""
         # 延迟检查，确保尺寸已经更新
         self.paned_window.after(50, self._check_constraints)
-    
-    def _on_map(self, event):
-        """窗口映射完成事件处理"""
-        if event.widget == self.paned_window:
-            # 窗口显示完成后检查约束
-            self.paned_window.after(100, self._check_constraints)
+
+        # 禁用Map事件处理，避免窗口最小化恢复时的不必要刷新
+        pass
     
     def _check_constraints(self):
         """检查并应用最小尺寸约束"""
@@ -147,6 +143,18 @@ class TTKPanedWindowMinSize:
         # 只处理PanedWindow本身的配置事件
         if event.widget != self.paned_window:
             return
+        
+        # 获取当前尺寸
+        if self.orientation == 'horizontal':
+            current_size = event.width
+        else:
+            current_size = event.height
+        
+        # 如果尺寸没有变化，不进行检查（避免窗口最小化恢复时的刷新）
+        if current_size == self.last_size:
+            return
+        
+        self.last_size = current_size
         
         # 延迟检查，避免频繁调用
         self.paned_window.after_idle(self._check_constraints)
@@ -242,9 +250,6 @@ class TTKPanedWindowMinSize:
                     if current_pos != cumulative_size:
                         # TTK PanedWindow使用sashpos方法
                         self.paned_window.sashpos(i, cumulative_size)
-                        # 强制刷新界面
-                        self.paned_window.update_idletasks()
-                        pass
                 except Exception:
                     pass
         except Exception:

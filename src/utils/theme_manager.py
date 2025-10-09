@@ -224,10 +224,6 @@ class ThemeManager:
                 ctypes.sizeof(value)
             )
             
-            # 强制刷新窗口
-            window.withdraw()
-            window.deiconify()
-            
         except Exception as e:
             print(f"设置标题栏主题失败: {e}")
     
