@@ -173,12 +173,24 @@ class SerialManager:
                         # 短暂休眠，避免CPU占用过高
                         time.sleep(0.01)
                 else:
-                    # 串口断开，通知回调
+                    # 串口断开，清理状态
+                    self.is_running = False
+                    self.serial_port = None
+                    # 通知回调
                     if self.disconnect_callback:
                         self.disconnect_callback()
                     break
             except Exception as e:
                 print(f"接收数据错误: {e}")
+                # 异常断开，清理状态
+                self.is_running = False
+                if self.serial_port:
+                    try:
+                        self.serial_port.close()
+                    except:
+                        pass
+                    self.serial_port = None
+                # 通知回调
                 if self.disconnect_callback:
                     self.disconnect_callback()
                 break

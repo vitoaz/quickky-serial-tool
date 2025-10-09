@@ -157,7 +157,17 @@ class ReceiveSettingsPanel(ttk.LabelFrame):
         self.auto_scroll_var.set(config.get('auto_scroll', True))
         
         # 更新编码选择状态
-        self._on_mode_changed()
+        mode = self.mode_var.get()
+        if mode == 'HEX':
+            self.encoding_utf8_radio.config(state='disabled')
+            self.encoding_ascii_radio.config(state='disabled')
+        else:
+            self.encoding_utf8_radio.config(state='normal')
+            self.encoding_ascii_radio.config(state='normal')
+        
+        # 触发配置变化回调，确保work_tab同步状态（特别是auto_reconnect）
+        if self.on_change_callback:
+            self.on_change_callback(self.get_settings())
     
     def apply_theme(self, theme_manager):
         """应用主题"""
