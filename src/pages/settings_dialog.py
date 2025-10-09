@@ -28,17 +28,14 @@ class SettingsDialog(tk.Toplevel):
         self.resizable(False, False)
         self.transient(parent)
         
-        # 先隐藏窗口，避免闪烁
-        self.withdraw()
-        
+        # 存储主题管理器引用
+        if hasattr(parent, 'theme_manager'):
+            self.theme_manager = parent.theme_manager
+    
         # 加载当前设置
         self.settings = self.config_manager.get_global_settings()
         
         self._create_widgets()
-        
-        # 存储主题管理器引用，供 DialogUtils 使用
-        if hasattr(parent, 'theme_manager'):
-            self.theme_manager = parent.theme_manager
     
     def _create_widgets(self):
         """创建控件"""

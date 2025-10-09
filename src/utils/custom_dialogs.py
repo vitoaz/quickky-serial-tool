@@ -23,9 +23,6 @@ class ConfirmDialog(tk.Toplevel):
         self.transient(parent)
         self.resizable(False, False)
         
-        # 先隐藏窗口，避免闪烁
-        self.withdraw()
-        
         # 应用主题
         self._apply_theme()
         

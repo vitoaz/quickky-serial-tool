@@ -327,9 +327,6 @@ class CommandDialog(tk.Toplevel):
         # 设置模态
         self.transient(parent)
         
-        # 先隐藏窗口，避免闪烁
-        self.withdraw()
-        
         # 名称
         ttk.Label(self, text='名称:').grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.name_entry = ttk.Entry(self, width=30)
@@ -435,9 +432,6 @@ class InputDialog(tk.Toplevel):
         
         # 设置模态
         self.transient(parent)
-        
-        # 先隐藏窗口，避免闪烁
-        self.withdraw()
         
         # 标签
         ttk.Label(self, text=label).grid(row=0, column=0, padx=10, pady=10, sticky='w')

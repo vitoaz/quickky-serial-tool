@@ -15,7 +15,7 @@ class DialogUtils:
     @staticmethod
     def center_dialog(dialog, parent, width=None, height=None):
         """
-        将对话框居中显示在父窗口中
+        将对话框居中显示在父窗口中（支持多显示器）
         
         Args:
             dialog: 对话框窗口
@@ -29,31 +29,20 @@ class DialogUtils:
         if height is None:
             height = 300
         
+        # 更新父窗口信息，确保获取最新位置
+        parent.update_idletasks()
+        
         # 获取父窗口位置和尺寸
         parent_x = parent.winfo_x()
         parent_y = parent.winfo_y()
         parent_width = parent.winfo_width()
         parent_height = parent.winfo_height()
         
-        # 计算居中位置
+        # 计算对话框在父窗口中的居中位置（使用父窗口的绝对坐标）
         x = parent_x + (parent_width - width) // 2
         y = parent_y + (parent_height - height) // 2
         
-        # 确保对话框不会超出屏幕边界
-        screen_width = dialog.winfo_screenwidth()
-        screen_height = dialog.winfo_screenheight()
-        
-        if x < 0:
-            x = 0
-        elif x + width > screen_width:
-            x = screen_width - width
-            
-        if y < 0:
-            y = 0
-        elif y + height > screen_height:
-            y = screen_height - height
-        
-        # 设置对话框位置和大小
+        # 设置对话框位置和大小（使用绝对坐标）
         dialog.geometry(f'{width}x{height}+{x}+{y}')
 
     @staticmethod
@@ -67,13 +56,26 @@ class DialogUtils:
             width: 对话框宽度（可选）
             height: 对话框高度（可选）
         """
-        # 居中显示
+        
+        # 设置窗口完全透明
+        dialog.withdraw()
+        dialog.attributes('-alpha', 0.0)
+
+        # 应用标题栏主题（在显示之前）
+        if hasattr(dialog, 'theme_manager') and dialog.theme_manager:
+            dialog.theme_manager.apply_titlebar_theme(dialog)
+        
+        # 居中显示窗口
         DialogUtils.center_dialog(dialog, parent, width, height)
         
-        # 显示窗口并设置模态
+        # 显示窗口（透明状态）
         dialog.deiconify()
+        
+        # 强制完成所有布局和渲染任务
+        dialog.update_idletasks()
+        dialog.update()
+        
+        # 恢复窗口不透明
+        dialog.attributes('-alpha', 1.0)
         dialog.grab_set()
         
-        # 在窗口显示后应用标题栏主题
-        if hasattr(dialog, 'theme_manager') and dialog.theme_manager:
-            dialog.after(10, lambda: dialog.theme_manager.apply_titlebar_theme(dialog))
