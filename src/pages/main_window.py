@@ -6,7 +6,7 @@ Email: vitoyuz@foxmail.com
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, Canvas
 import os
 
 from .settings_dialog import SettingsDialog
@@ -28,10 +28,16 @@ class MainWindow(tk.Tk):
         """初始化主窗口"""
         super().__init__()
         
-        self.title(AppInfo.get_window_title())
+        # 立即隐藏窗口，避免闪烁
+        self.withdraw()
         
-        # 窗口居中显示
+        # 设置窗口完全透明
+        self.attributes('-alpha', 0.0)
+        
+        # 窗口居中显示（在隐藏状态下设置）
         self._center_window(1200, 700)
+        
+        self.title(AppInfo.get_window_title())
         
         # 设置窗口图标
         self._setup_icon()
@@ -46,15 +52,30 @@ class MainWindow(tk.Tk):
         
         # 创建自定义菜单栏
         self._create_custom_menu()
+
+        # 退出处理
+        self.protocol('WM_DELETE_WINDOW', self._on_closing)
         
-        # 在创建Tab之前先加载主题
+        # 应用主题
         self._load_and_apply_theme()
         
         # 再次应用主题确保所有控件都正确
-        self.after(100, self._apply_theme_to_all_widgets)
+        self.after(0, self._apply_theme_to_all_widgets)
         
-        # 退出处理
-        self.protocol('WM_DELETE_WINDOW', self._on_closing)
+        # 等待所有组件加载完成后再显示窗口
+        self.after(0, self._show_window)
+    
+    def _show_window(self):
+        """显示窗口（等待加载完成后）"""
+        # 显示窗口（透明状态）
+        self.deiconify()
+        
+        # 强制完成所有布局和渲染任务
+        self.update_idletasks()
+        self.update()
+        
+        # 恢复窗口不透明
+        self.attributes('-alpha', 1.0)
     
     def _center_window(self, width, height):
         """将窗口居中显示"""
