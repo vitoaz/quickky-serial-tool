@@ -42,7 +42,8 @@ class ConfigManager:
             "global_settings": {
                 "receive_buffer_size": 10000,  # 数据接收缓冲区大小
                 "send_history_max": 200,  # 发送历史最大条数
-                "fontSize": 9  # 接收区域字体大小
+                "fontSize": 9,  # 接收区域字体大小
+                "reconnect_interval": 5  # 自动重连间隔（秒）
             }
         }
     
@@ -290,7 +291,8 @@ class ConfigManager:
         default_settings = {
             "receive_buffer_size": 10000,
             "send_history_max": 200,
-            "fontSize": 9
+            "fontSize": 9,
+            "reconnect_interval": 5
         }
         return self.config.get('global_settings', default_settings)
     

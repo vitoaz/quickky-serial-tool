@@ -48,7 +48,10 @@ class WorkTab(ttk.Frame):
         # 自动重连相关
         self.auto_reconnect_enabled = False  # 是否启用自动重连
         self.reconnect_timer = None  # 重连定时器
-        self.reconnect_interval = 5.0  # 重连间隔（秒）
+        
+        # 从全局设置中读取重连间隔
+        global_settings = self.config_manager.get_global_settings()
+        self.reconnect_interval = global_settings.get('reconnect_interval', 5)
         
         # 延迟创建控件，减少Tab切换时的刷新
         self.after(1, self._init_ui)
@@ -615,7 +618,11 @@ class WorkTab(ttk.Frame):
         # 停止之前的定时器
         self._stop_auto_reconnect()
         
-        # 5秒后开始第一次重连尝试（不立即尝试，避免重复日志）
+        # 更新重连间隔（从全局设置中读取）
+        global_settings = self.config_manager.get_global_settings()
+        self.reconnect_interval = global_settings.get('reconnect_interval', 5)
+        
+        # 根据配置的间隔开始第一次重连尝试（不立即尝试，避免重复日志）
         self.reconnect_timer = self.after(int(self.reconnect_interval * 1000), self._try_reconnect)
     
     def _stop_auto_reconnect(self):

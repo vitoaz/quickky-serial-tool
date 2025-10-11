@@ -98,6 +98,23 @@ class SettingsDialog(tk.Toplevel):
         font_size_spinbox.pack(side='left', padx=(10, 5))
         ttk.Label(row3, text='').pack(side='left')
         
+        # 自动重连间隔
+        row4 = ttk.Frame(settings_frame)
+        row4.pack(fill='x', pady=10)
+        
+        ttk.Label(row4, text='自动重连间隔（秒）:', width=20, anchor='w').pack(side='left')
+        self.reconnect_interval_var = tk.IntVar(value=self.settings.get('reconnect_interval', 5))
+        reconnect_interval_spinbox = ttk.Spinbox(
+            row4,
+            from_=1,
+            to=30,
+            increment=1,
+            textvariable=self.reconnect_interval_var,
+            width=15
+        )
+        reconnect_interval_spinbox.pack(side='left', padx=(10, 5))
+        ttk.Label(row4, text='').pack(side='left')
+        
         # 按钮容器
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(pady=(20, 0))
@@ -111,6 +128,7 @@ class SettingsDialog(tk.Toplevel):
             buffer_size = self.buffer_size_var.get()
             history_max = self.history_max_var.get()
             font_size = self.font_size_var.get()
+            reconnect_interval = self.reconnect_interval_var.get()
             
             # 验证输入
             if buffer_size < 1000 or buffer_size > 100000:
@@ -125,11 +143,16 @@ class SettingsDialog(tk.Toplevel):
                 messagebox.showerror('错误', '字体大小必须在6-20之间', parent=self)
                 return
             
+            if reconnect_interval < 1 or reconnect_interval > 30:
+                messagebox.showerror('错误', '自动重连间隔必须在1-30秒之间', parent=self)
+                return
+            
             # 保存设置
             settings = {
                 'receive_buffer_size': buffer_size,
                 'send_history_max': history_max,
-                'fontSize': font_size
+                'fontSize': font_size,
+                'reconnect_interval': reconnect_interval
             }
             self.config_manager.set_global_settings(settings)
             
