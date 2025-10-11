@@ -45,6 +45,9 @@ class WorkTab(ttk.Frame):
         self.loop_send_timer = None
         self.theme_manager = None  # 主题管理器将在apply_theme中设置
         
+        # 接收区显示缓冲
+        self.display_buffer = []  # 显示缓冲区
+        
         # 自动重连相关
         self.auto_reconnect_enabled = False  # 是否启用自动重连
         self.reconnect_timer = None  # 重连定时器
@@ -369,15 +372,36 @@ class WorkTab(ttk.Frame):
             
             # 格式化数据
             if settings['mode'] == 'HEX':
+                # HEX模式：格式化并显示
                 formatted_data = ' '.join([f'{b:02X}' for b in data]) + ' '
+                # 日志模式下添加换行符
+                if settings['log_mode']:
+                    formatted_data += '\n'
+                self._append_receive(formatted_data)
             else:
+                # TEXT模式：解码数据
                 try:
                     formatted_data = data.decode(settings['encoding'].lower().replace('-', ''))
                 except:
                     formatted_data = str(data)
-            
-            # 显示数据（时间戳由_append_receive统一处理）
-            self._append_receive(formatted_data, level='normal')
+                
+                # TEXT模式：日志模式下按换行符分行显示，否则直接显示
+                if settings['log_mode'] and ('\n' in formatted_data or '\r' in formatted_data):
+                    # 分割多行内容
+                    lines = formatted_data.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+                    for i, line in enumerate(lines):
+                        if i < len(lines) - 1:
+                            # 不是最后一行，添加换行符，不立即刷新
+                            self._append_receive(line + '\n', flush=False)
+                        elif line:
+                            # 最后一行且非空，刷新显示
+                            self._append_receive(line, flush=True)
+                    # 如果最后一行是空行，需要手动刷新
+                    if lines and not lines[-1]:
+                        self._flush_display()
+                else:
+                    # 没有换行符或未开启日志模式，直接显示
+                    self._append_receive(formatted_data, flush=True)
         
         self.after(0, update_ui)
     
@@ -495,13 +519,14 @@ class WorkTab(ttk.Frame):
         """清除发送区"""
         self.send_text.delete('1.0', 'end')
     
-    def _append_receive(self, text, level='normal'):
+    def _append_receive(self, text, level='normal', flush=True):
         """
         追加接收数据（统一处理显示和日志保存）
         
         Args:
             text: 文本内容
             level: 日志级别 ('normal', 'info', 'error', 'success', 'warning')
+            flush: 是否立即刷新显示，False时只缓冲，True时刷新所有缓冲内容
         """
         # 获取接收设置
         settings = self.receive_settings.get_settings()
@@ -511,50 +536,104 @@ class WorkTab(ttk.Frame):
         
         # 如果开启了日志模式，则添加时间戳
         if settings['log_mode']:
-            # 检查文本是否已经包含时间戳
-            if not text.startswith('[') or ']:' not in text[:15]:
-                timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
-                display_text = timestamp + text
-                
-                # 确保有换行符
-                if not display_text.endswith('\n'):
-                    display_text += '\n'
+            timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
+            display_text = timestamp + text
         
-        # 显示文本
-        self.receive_text.config(state='normal')
+        # 添加到缓冲区
+        self.display_buffer.append({
+            'text': display_text,
+            'level': level
+        })
         
-        # 根据主题和级别获取对应的颜色
-        if self.theme_manager and level != 'normal':
-            colors = self.theme_manager.get_theme_colors()
-            # 映射日志级别到主题颜色
-            level_color_map = {
-                'info': colors.get('log_info_color', '#0066CC'),
-                'error': colors.get('log_error_color', '#D32F2F'),
-                'success': colors.get('log_success_color', '#388E3C'),
-                'warning': colors.get('log_error_color', '#D32F2F'),  # 警告用错误色
-            }
-            actual_color = level_color_map.get(level, colors.get('text_fg', '#000000'))
-        else:
-            # 普通文本使用当前主题的文本颜色
-            if self.theme_manager:
-                colors = self.theme_manager.get_theme_colors()
-                actual_color = colors.get('text_fg', '#000000')
-            else:
-                actual_color = 'black'
-        
-        # 创建tag
-        tag_name = f'level_{level}'
-        self.receive_text.tag_config(tag_name, foreground=actual_color)
-        
-        self.receive_text.insert('end', display_text, tag_name)
-        
-        # 保存日志文件（不区分串口是否打开，只要勾选了保存日志文件就写入）
+        # 保存到日志文件（立即保存，不缓冲）
         if settings['save_log'] and self.log_file_path:
             try:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:
                     f.write(display_text)
             except Exception as e:
                 print(f"写入日志文件失败: {e}")
+        
+        # 如果需要刷新，立即显示所有缓冲内容
+        if flush:
+            self._flush_display()
+    
+    def _flush_display(self):
+        """刷新显示缓冲区内容到接收区"""
+        if not self.display_buffer:
+            return
+        
+        # 获取接收设置
+        settings = self.receive_settings.get_settings()
+        
+        # 显示文本
+        self.receive_text.config(state='normal')
+        
+        # 获取默认文本颜色
+        if self.theme_manager:
+            colors = self.theme_manager.get_theme_colors()
+            default_color = colors.get('text_fg', '#000000')
+        else:
+            default_color = 'black'
+        
+        # 合并相同level的连续文本，减少insert次数
+        merged_items = []
+        current_level = None
+        current_text = []
+        
+        for item in self.display_buffer:
+            level = item['level']
+            text = item['text']
+            
+            if level == current_level:
+                # 相同level，合并文本
+                current_text.append(text)
+            else:
+                # 不同level，保存前一个合并的项
+                if current_text:
+                    merged_items.append({
+                        'level': current_level,
+                        'text': ''.join(current_text)
+                    })
+                # 开始新的合并
+                current_level = level
+                current_text = [text]
+        
+        # 保存最后一个合并的项
+        if current_text:
+            merged_items.append({
+                'level': current_level,
+                'text': ''.join(current_text)
+            })
+        
+        # 批量插入合并后的内容
+        for item in merged_items:
+            level = item['level']
+            display_text = item['text']
+            
+            # 根据主题和级别获取对应的颜色
+            if self.theme_manager and level != 'normal':
+                colors = self.theme_manager.get_theme_colors()
+                # 映射日志级别到主题颜色
+                level_color_map = {
+                    'info': colors.get('log_info_color', '#0066CC'),
+                    'error': colors.get('log_error_color', '#D32F2F'),
+                    'success': colors.get('log_success_color', '#388E3C'),
+                    'warning': colors.get('log_error_color', '#D32F2F'),  # 警告用错误色
+                }
+                actual_color = level_color_map.get(level, default_color)
+            else:
+                # 普通文本使用默认颜色
+                actual_color = default_color
+            
+            # 创建tag
+            tag_name = f'level_{level}'
+            self.receive_text.tag_config(tag_name, foreground=actual_color)
+            
+            # 一次性插入合并后的文本
+            self.receive_text.insert('end', display_text, tag_name)
+        
+        # 清空缓冲区
+        self.display_buffer.clear()
         
         # 检查buffer大小限制
         global_settings = self.config_manager.get_global_settings()
