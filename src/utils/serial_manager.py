@@ -43,6 +43,8 @@ class SerialManager:
         self.disconnect_callback = None
         self.last_config = {}
         self.operation_timeout = 1.0  # 操作超时时间（秒）
+        self.check_interval = 0.5  # 串口状态检查间隔（秒）
+        self.last_check_time = 0  # 上次检查时间
     
     @staticmethod
     def get_available_ports():
@@ -54,6 +56,55 @@ class SerialManager:
         """
         ports = serial.tools.list_ports.comports()
         return [port.device for port in ports]
+    
+    def _is_port_available(self, port_name):
+        """
+        检查串口是否仍然可用（物理存在）
+        
+        Args:
+            port_name (str): 串口名称
+            
+        Returns:
+            bool: 串口是否存在
+        """
+        available_ports = self.get_available_ports()
+        return port_name in available_ports
+    
+    def _check_port_health(self):
+        """
+        综合检查串口健康状态
+        
+        Returns:
+            tuple: (is_healthy, error_message)
+        """
+        if not self.serial_port:
+            return False, "串口对象不存在"
+        
+        try:
+            # 检查1: 串口是否处于打开状态
+            if not self.serial_port.is_open:
+                return False, "串口未打开"
+            
+            # 检查2: 串口是否仍然物理存在
+            port_name = self.serial_port.port
+            if not self._is_port_available(port_name):
+                return False, f"串口 {port_name} 已被移除"
+            
+            # 检查3: 尝试获取串口状态（某些断开情况下会失败）
+            try:
+                # 检查CTS（Clear To Send）信号状态
+                _ = self.serial_port.cts
+                # 检查DSR（Data Set Ready）信号状态
+                _ = self.serial_port.dsr
+                # 检查输入缓冲区大小
+                _ = self.serial_port.in_waiting
+            except (OSError, AttributeError) as e:
+                return False, f"串口状态异常: {e}"
+            
+            return True, None
+            
+        except Exception as e:
+            return False, f"串口健康检查失败: {e}"
     
     def open(self, port, baudrate=115200, parity='None', bytesize=8, 
              stopbits=1, flow_control='None'):
@@ -126,7 +177,7 @@ class SerialManager:
         return True
     
     def close(self):
-        """关闭串口"""
+        """关闭串口（主动关闭不触发回调）"""
         self.is_running = False
         
         # 等待接收线程结束
@@ -156,43 +207,57 @@ class SerialManager:
         """接收数据循环"""
         while self.is_running:
             try:
+                # 定期检查串口健康状态
+                current_time = time.time()
+                if current_time - self.last_check_time > self.check_interval:
+                    self.last_check_time = current_time
+                    is_healthy, error_msg = self._check_port_health()
+                    if not is_healthy:
+                        print(f"串口健康检查失败: {error_msg}")
+                        raise serial.SerialException(error_msg)
+                
+                # 读取数据
                 if self.serial_port and self.serial_port.is_open:
-                    # 使用超时读取，避免阻塞
-                    if self.serial_port.in_waiting:
-                        try:
+                    try:
+                        # 检查是否有数据可读
+                        if self.serial_port.in_waiting:
                             data = self.serial_port.read(self.serial_port.in_waiting)
                             if self.receive_callback and data:
                                 self.receive_callback(data)
-                        except serial.SerialTimeoutException:
-                            print("读取数据超时")
-                            continue
-                        except Exception as e:
-                            print(f"读取数据错误: {e}")
-                            raise
-                    else:
-                        # 短暂休眠，避免CPU占用过高
-                        time.sleep(0.01)
+                        else:
+                            # 短暂休眠，避免CPU占用过高
+                            time.sleep(0.01)
+                    except serial.SerialTimeoutException:
+                        print("读取数据超时")
+                        continue
+                    except (OSError, serial.SerialException) as e:
+                        # 串口读取错误，可能已断开
+                        print(f"读取数据错误: {e}")
+                        raise
                 else:
-                    # 串口断开，清理状态
+                    # 串口对象无效
+                    if self.is_running:
+                        print("检测到串口对象无效")
+                        raise serial.SerialException("串口对象无效")
+                    break
+                    
+            except Exception as e:
+                # 只有在运行状态下才触发断开回调（避免主动关闭时触发）
+                if self.is_running:
+                    print(f"串口异常断开: {e}")
                     self.is_running = False
-                    self.serial_port = None
-                    # 通知回调
+                    
+                    # 清理串口对象
+                    if self.serial_port:
+                        try:
+                            self.serial_port.close()
+                        except:
+                            pass
+                        self.serial_port = None
+                    
+                    # 触发断开回调
                     if self.disconnect_callback:
                         self.disconnect_callback()
-                    break
-            except Exception as e:
-                print(f"接收数据错误: {e}")
-                # 异常断开，清理状态
-                self.is_running = False
-                if self.serial_port:
-                    try:
-                        self.serial_port.close()
-                    except:
-                        pass
-                    self.serial_port = None
-                # 通知回调
-                if self.disconnect_callback:
-                    self.disconnect_callback()
                 break
     
     def send(self, data, mode='TEXT', encoding='UTF-8'):
