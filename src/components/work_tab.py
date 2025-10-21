@@ -6,7 +6,7 @@ Email: vitoyuz@foxmail.com
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext, filedialog
+from tkinter import ttk, filedialog
 from datetime import datetime
 import threading
 from .serial_settings_panel import SerialSettingsPanel
@@ -47,6 +47,9 @@ class WorkTab(ttk.Frame):
         
         # 接收区显示缓冲
         self.display_buffer = []  # 显示缓冲区
+        self.flush_after_id = None  # UI刷新定时器ID
+        self.flush_interval_ms = 100  # 刷新间隔
+        self.current_line_count = 1  # 文本当前行数缓存
         
         # 自动重连相关
         self.auto_reconnect_enabled = False  # 是否启用自动重连
@@ -121,9 +124,15 @@ class WorkTab(ttk.Frame):
         self.receive_scrollbar = ttk.Scrollbar(text_container, orient='vertical')
         self.receive_scrollbar.pack(side='right', fill='y')
         
-        self.receive_text = tk.Text(text_container, height=15, state='disabled',
-                                   relief='flat', borderwidth=0, highlightthickness=0,
-                                   yscrollcommand=self.receive_scrollbar.set)
+        self.receive_text = tk.Text(
+            text_container,
+            height=15,
+            state='disabled',
+            relief='flat',
+            borderwidth=0,
+            highlightthickness=0,
+            yscrollcommand=self.receive_scrollbar.set
+        )
         self.receive_text.pack(side='left', fill='both', expand=True)
         self.receive_scrollbar.config(command=self.receive_text.yview)
         
@@ -189,7 +198,30 @@ class WorkTab(ttk.Frame):
         
         # 循环发送状态
         self.is_loop_sending = False
+        self._initialize_receive_tags()
     
+    def _initialize_receive_tags(self):
+        """初始化接收区日志级别tag"""
+        if not hasattr(self, 'receive_text'):
+            return
+        default_colors = {
+            'normal': '#000000',
+            'info': '#0066CC',
+            'error': '#D32F2F',
+            'success': '#388E3C',
+            'warning': '#D32F2F',
+        }
+        colors = self.theme_manager.get_theme_colors() if self.theme_manager else {}
+
+        for level, default_color in default_colors.items():
+            if level == 'normal':
+                color = colors.get('text_fg', default_color)
+            else:
+                color_key = f'log_{level}_color'
+                color = colors.get(color_key, colors.get('log_error_color', default_color))
+            tag_name = 'level_normal' if level == 'normal' else f'level_{level}'
+            self.receive_text.tag_config(tag_name, foreground=color)
+
     def _setup_callbacks(self):
         """设置回调函数"""
         self.serial_manager.set_receive_callback(self._on_data_received)
@@ -398,10 +430,10 @@ class WorkTab(ttk.Frame):
                             self._append_receive(line, flush=True)
                     # 如果最后一行是空行，需要手动刷新
                     if lines and not lines[-1]:
-                        self._flush_display()
+                        self._flush_display(force=True)
                 else:
                     # 没有换行符或未开启日志模式，直接显示
-                    self._append_receive(formatted_data, flush=True)
+                    self._append_receive(formatted_data)
         
         self.after(0, update_ui)
     
@@ -514,6 +546,7 @@ class WorkTab(ttk.Frame):
         self.receive_text.config(state='normal')
         self.receive_text.delete('1.0', 'end')
         self.receive_text.config(state='disabled')
+        self.current_line_count = 1
     
     def _clear_send(self, event=None):
         """清除发送区"""
@@ -555,9 +588,26 @@ class WorkTab(ttk.Frame):
         
         # 如果需要刷新，立即显示所有缓冲内容
         if flush:
-            self._flush_display()
+            self._schedule_flush()
+
+    def _schedule_flush(self):
+        """安排延迟刷新显示缓冲"""
+        if self.flush_after_id is None:
+            self.flush_after_id = self.after(self.flush_interval_ms, self._perform_scheduled_flush)
+
+    def _perform_scheduled_flush(self):
+        """执行延迟刷新回调"""
+        self.flush_after_id = None
+        self._flush_display_internal()
     
-    def _flush_display(self):
+    def _flush_display(self, force=False):
+        """刷新显示缓冲区内容到接收区"""
+        if force and self.flush_after_id is not None:
+            self.after_cancel(self.flush_after_id)
+            self.flush_after_id = None
+        self._flush_display_internal()
+
+    def _flush_display_internal(self):
         """刷新显示缓冲区内容到接收区"""
         if not self.display_buffer:
             return
@@ -609,27 +659,17 @@ class WorkTab(ttk.Frame):
         for item in merged_items:
             level = item['level']
             display_text = item['text']
-            
-            # 根据主题和级别获取对应的颜色
-            if self.theme_manager and level != 'normal':
-                colors = self.theme_manager.get_theme_colors()
-                # 映射日志级别到主题颜色
-                level_color_map = {
-                    'info': colors.get('log_info_color', '#0066CC'),
-                    'error': colors.get('log_error_color', '#D32F2F'),
-                    'success': colors.get('log_success_color', '#388E3C'),
-                    'warning': colors.get('log_error_color', '#D32F2F'),  # 警告用错误色
-                }
-                actual_color = level_color_map.get(level, default_color)
-            else:
-                # 普通文本使用默认颜色
-                actual_color = default_color
-            
-            # 创建tag
-            tag_name = f'level_{level}'
-            self.receive_text.tag_config(tag_name, foreground=actual_color)
-            
-            # 一次性插入合并后的文本
+
+            # 根据日志级别选择tag
+            tag_name = 'level_normal' if level == 'normal' else f'level_{level}'
+
+            # 更新当前行数缓存
+            newline_count = display_text.count('\n')
+            if display_text and display_text[-1] != '\n':
+                newline_count += 1
+            self.current_line_count += newline_count
+
+            # 插入文本
             self.receive_text.insert('end', display_text, tag_name)
         
         # 清空缓冲区
@@ -639,13 +679,11 @@ class WorkTab(ttk.Frame):
         global_settings = self.config_manager.get_global_settings()
         max_lines = global_settings.get('receive_buffer_size', 10000)
         
-        # 获取当前行数
-        current_lines = int(self.receive_text.index('end-1c').split('.')[0])
-        
         # 如果超过限制，删除前面的行
-        if current_lines > max_lines:
-            lines_to_delete = current_lines - max_lines
+        if self.current_line_count > max_lines:
+            lines_to_delete = self.current_line_count - max_lines
             self.receive_text.delete('1.0', f'{lines_to_delete + 1}.0')
+            self.current_line_count = max_lines
         
         # 根据接收自动滚屏设置决定是否滚动
         if settings.get('auto_scroll', True):
@@ -798,6 +836,7 @@ class WorkTab(ttk.Frame):
                     insertbackground=colors.get('text_fg', '#000000'),
                     font=('Consolas', font_size)
                 )
+                self._initialize_receive_tags()
             
             # 应用到发送区
             if hasattr(self, 'send_text'):
