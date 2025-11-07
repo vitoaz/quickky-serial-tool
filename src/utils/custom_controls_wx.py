@@ -82,8 +82,9 @@ class ThemedSpinCtrl(wx.Panel):
         sizer.Add(btn_sizer, 0, wx.EXPAND)
         self.SetSizer(sizer)
         
-        self._bg_color = wx.WHITE
-        self._fg_color = wx.BLACK
+        # 初始化为系统默认颜色，等待apply_theme设置
+        self._bg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        self._fg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
         
     def _on_up(self, event):
         """增加值"""
@@ -234,19 +235,11 @@ class ThemedComboBox(wx.adv.OwnerDrawnComboBox):
                  size=wx.DefaultSize, choices=[], style=0, name='comboBox'):
         super().__init__(parent, id, value, pos, size, choices, style, name=name)
         
-        self._bg_color = wx.WHITE
-        self._fg_color = wx.BLACK
+        # 初始化为系统默认颜色，等待apply_theme设置
+        self._bg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+        self._fg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOWTEXT)
         self._sel_bg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
-        self._sel_fg_color = wx.WHITE
-        
-        # 尝试设置文本控件的颜色（针对可编辑ComboBox）
-        try:
-            text_ctrl = self.GetTextCtrl()
-            if text_ctrl:
-                text_ctrl.SetBackgroundColour(self._bg_color)
-                text_ctrl.SetForegroundColour(self._fg_color)
-        except:
-            pass
+        self._sel_fg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHTTEXT)
         
     def apply_theme(self, bg_color, fg_color, sel_bg_color=None, sel_fg_color=None):
         """应用主题颜色"""

@@ -307,16 +307,18 @@ class MainWindow(wx.Frame):
             if hasattr(self, 'splitter'):
                 self.splitter.SetBackgroundColour(bg_color)
             
-            # 应用到工作面板
+            # 应用到工作面板（会递归应用到所有WorkTab和子控件）
             if hasattr(self, 'work_panel'):
                 self.work_panel.apply_theme()
             
-            # 应用到命令面板
+            # 应用到命令面板（会递归应用到快捷指令和历史发送）
             if hasattr(self, 'command_panel'):
                 self.command_panel.apply_theme(self.theme_manager)
             
-            # 递归应用到所有子控件
-            self._apply_theme_recursive(self, bg_color, fg_color)
+            # 应用到菜单分隔线
+            if hasattr(self, 'menu_separator'):
+                separator_color = self.theme_manager.hex_to_wx_colour(colors.get('border', '#CCCCCC'))
+                self.menu_separator.SetBackgroundColour(separator_color)
             
             # 刷新界面
             self.Refresh()
@@ -390,45 +392,6 @@ class MainWindow(wx.Frame):
                     )
                 except:
                     pass
-        except:
-            pass
-    
-    def _apply_theme_recursive(self, widget, bg_color, fg_color):
-        """递归应用主题到所有子控件"""
-        try:
-            # 跳过已经单独处理主题的控件
-            skip_types = (wx.TextCtrl, wx.stc.StyledTextCtrl, wx.ListCtrl)
-            
-            # Windows原生控件类型（这些控件可能不支持背景色自定义）
-            native_types = (wx.ComboBox, wx.Choice, wx.Button, wx.SpinCtrl, wx.StaticBox)
-            
-            if not isinstance(widget, skip_types):
-                # Notebook需要特殊处理
-                if isinstance(widget, wx.Notebook):
-                    widget.SetBackgroundColour(bg_color)
-                    widget.SetForegroundColour(fg_color)
-                # 对于Panel和StaticText等容器/标签控件，强制设置颜色
-                elif isinstance(widget, (wx.Panel, wx.StaticText, wx.CheckBox, wx.RadioButton)):
-                    widget.SetBackgroundColour(bg_color)
-                    widget.SetForegroundColour(fg_color)
-                # 对于原生控件，尝试设置前景色（文本颜色）
-                elif isinstance(widget, native_types):
-                    try:
-                        widget.SetForegroundColour(fg_color)
-                    except:
-                        pass
-                # 其他控件尝试设置背景色和前景色
-                else:
-                    try:
-                        widget.SetBackgroundColour(bg_color)
-                        widget.SetForegroundColour(fg_color)
-                    except:
-                        pass
-            
-            # 递归处理子控件
-            for child in widget.GetChildren():
-                if not isinstance(child, skip_types):
-                    self._apply_theme_recursive(child, bg_color, fg_color)
         except:
             pass
     

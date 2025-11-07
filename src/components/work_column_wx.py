@@ -112,8 +112,17 @@ class WorkColumn(wx.Panel):
         if self.theme_manager:
             font_size = self.config_manager.get_font_size()
             tab.apply_theme(self.theme_manager, font_size)
+            
+            # 递归应用主题到新tab的所有子控件（确保与main_window保持一致）
+            wx.CallAfter(self._apply_full_theme_to_tab, tab)
         
         return tab
+    
+    def _apply_full_theme_to_tab(self, tab):
+        """递归应用主题到tab的所有控件（确保与main_window保持一致）"""
+        # 暂时禁用此方法，因为work_tab_wx.py的apply_theme已经包含了递归应用
+        # 避免重复应用导致冲突
+        pass
     
     def _on_double_click(self, event):
         """双击Tab处理"""
@@ -212,6 +221,15 @@ class WorkColumn(wx.Panel):
     
     def apply_theme(self, theme_manager):
         """应用主题到所有Tab"""
+        self.theme_manager = theme_manager
+        
+        # 设置work_column自身的背景色
+        if theme_manager:
+            colors = theme_manager.get_theme_colors()
+            bg_color = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            self.SetBackgroundColour(bg_color)
+            self.notebook.SetBackgroundColour(bg_color)
+        
         font_size = self.config_manager.get_font_size()
         for i in range(self.notebook.GetPageCount() - 1):  # 排除加号Tab
             tab = self.notebook.GetPage(i)

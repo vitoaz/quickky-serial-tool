@@ -35,53 +35,53 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
     
     def _create_widgets(self):
         """创建控件"""
-        panel = wx.Panel(self.GetStaticBox())
+        self.panel = wx.Panel(self.GetStaticBox())
         grid = wx.FlexGridSizer(6, 2, 5, 5)
         
         # 串口号
-        grid.Add(wx.StaticText(panel, label='串口号:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.port_combo = ThemedComboBox(panel, style=wx.CB_READONLY, size=(150, -1))
+        grid.Add(wx.StaticText(self.panel, label='串口号:'), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.port_combo = ThemedComboBox(self.panel, style=wx.CB_READONLY, size=(150, -1))
         self.port_combo.Bind(wx.EVT_COMBOBOX, self._on_port_changed)
         self.port_combo.Bind(wx.EVT_COMBOBOX_DROPDOWN, self._refresh_ports)
         grid.Add(self.port_combo, 0, wx.EXPAND)
         
         # 波特率
-        grid.Add(wx.StaticText(panel, label='波特率:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.baudrate_combo = ThemedComboBox(panel, value='115200', choices=self.BAUDRATES, size=(150, -1))
+        grid.Add(wx.StaticText(self.panel, label='波特率:'), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.baudrate_combo = ThemedComboBox(self.panel, value='115200', choices=self.BAUDRATES, size=(150, -1))
         self.baudrate_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         self.baudrate_combo.Bind(wx.EVT_TEXT, self._on_setting_changed)
         grid.Add(self.baudrate_combo, 0, wx.EXPAND)
         
         # 校验位
-        grid.Add(wx.StaticText(panel, label='校验位:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.parity_combo = ThemedComboBox(panel, value='None', choices=self.PARITIES, 
+        grid.Add(wx.StaticText(self.panel, label='校验位:'), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.parity_combo = ThemedComboBox(self.panel, value='None', choices=self.PARITIES, 
                                        style=wx.CB_READONLY, size=(150, -1))
         self.parity_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.parity_combo, 0, wx.EXPAND)
         
         # 数据位
-        grid.Add(wx.StaticText(panel, label='数据位:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.bytesize_combo = ThemedComboBox(panel, value='8', choices=self.BYTESIZES, 
+        grid.Add(wx.StaticText(self.panel, label='数据位:'), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.bytesize_combo = ThemedComboBox(self.panel, value='8', choices=self.BYTESIZES, 
                                          style=wx.CB_READONLY, size=(150, -1))
         self.bytesize_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.bytesize_combo, 0, wx.EXPAND)
         
         # 停止位
-        grid.Add(wx.StaticText(panel, label='停止位:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.stopbits_combo = ThemedComboBox(panel, value='1', choices=self.STOPBITS, 
+        grid.Add(wx.StaticText(self.panel, label='停止位:'), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.stopbits_combo = ThemedComboBox(self.panel, value='1', choices=self.STOPBITS, 
                                          style=wx.CB_READONLY, size=(150, -1))
         self.stopbits_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.stopbits_combo, 0, wx.EXPAND)
         
         # 流控
-        grid.Add(wx.StaticText(panel, label='流控:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.flow_control_combo = ThemedComboBox(panel, value='None', choices=self.FLOW_CONTROLS, 
+        grid.Add(wx.StaticText(self.panel, label='流控:'), 0, wx.ALIGN_CENTER_VERTICAL)
+        self.flow_control_combo = ThemedComboBox(self.panel, value='None', choices=self.FLOW_CONTROLS, 
                                              style=wx.CB_READONLY, size=(150, -1))
         self.flow_control_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.flow_control_combo, 0, wx.EXPAND)
         
-        panel.SetSizer(grid)
-        self.Add(panel, 0, wx.ALL | wx.EXPAND, 8)
+        self.panel.SetSizer(grid)
+        self.Add(self.panel, 0, wx.ALL | wx.EXPAND, 8)
     
     def _refresh_ports(self, event=None):
         """刷新可用串口列表"""
@@ -187,6 +187,38 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
             for combo in [self.port_combo, self.baudrate_combo, self.parity_combo,
                          self.bytesize_combo, self.stopbits_combo, self.flow_control_combo]:
                 combo.apply_theme(bg_color, fg_color, sel_bg_color, sel_fg_color)
+            
+            # 应用到Panel和Label
+            panel_bg = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            panel_fg = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
+            
+            # 设置StaticBox（边框标题）的颜色
+            static_box = self.GetStaticBox()
+            if static_box:
+                static_box.SetForegroundColour(panel_fg)
+            
+            # 递归应用到所有StaticText、RadioButton、CheckBox和Panel
+            def apply_to_labels(widget):
+                try:
+                    if isinstance(widget, wx.StaticText):
+                        widget.SetForegroundColour(panel_fg)
+                        widget.SetBackgroundColour(panel_bg)
+                    elif isinstance(widget, (wx.RadioButton, wx.CheckBox)):
+                        # RadioButton和CheckBox也需要设置前景色
+                        widget.SetForegroundColour(panel_fg)
+                    elif isinstance(widget, wx.Panel):
+                        widget.SetBackgroundColour(panel_bg)
+                    
+                    if hasattr(widget, 'GetChildren'):
+                        for child in widget.GetChildren():
+                            apply_to_labels(child)
+                except:
+                    pass
+            
+            # 从内部panel开始递归（panel包含所有的StaticText）
+            if hasattr(self, 'panel'):
+                apply_to_labels(self.panel)
+            
         except Exception as e:
             print(f"应用主题到串口设置面板时出错: {e}")
 

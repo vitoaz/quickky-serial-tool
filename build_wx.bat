@@ -39,12 +39,12 @@ echo.
 
 echo [4/7] 清理旧的构建文件...
 if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
+if exist dist\QSerial.exe del dist\QSerial.exe
 echo.
 
 echo [5/7] 打包应用程序...
 python3 -m PyInstaller --onefile --windowed ^
-  --name QSerial_wx ^
+  --name QSerial ^
   --icon icon.ico ^
   --add-data "version.py;." ^
   --add-data "icon.png;." ^
@@ -54,6 +54,9 @@ python3 -m PyInstaller --onefile --windowed ^
   --hidden-import wx.stc ^
   --hidden-import wx.lib.agw.aui ^
   --hidden-import wx.lib.agw.flatnotebook ^
+  --hidden-import wx.lib.agw.flatmenu ^
+  --hidden-import wx.lib.agw.artmanager ^
+  --hidden-import wx.lib.buttons ^
   --hidden-import components ^
   --hidden-import pages ^
   --hidden-import utils ^
@@ -68,7 +71,7 @@ echo.
 
 echo [6/7] 清理临时文件和复制资源...
 if exist build rmdir /s /q build
-if exist QSerial_wx.spec del QSerial_wx.spec
+if exist QSerial.spec del QSerial.spec
 
 REM 确保themes目录在dist下有独立拷贝
 if exist themes (
@@ -95,26 +98,26 @@ echo [INFO] Version: %VERSION%
 
 REM 创建压缩包（包含exe和themes目录）
 cd dist
-if exist QSerial_wx_v%VERSION%.zip del QSerial_wx_v%VERSION%.zip
+if exist QSerial_v%VERSION%.zip del QSerial_v%VERSION%.zip
 if exist themes (
     if exist config.json (
-        powershell -Command "Compress-Archive -Path QSerial_wx.exe,themes,config.json -DestinationPath QSerial_wx_v%VERSION%.zip -Force"
-        echo [INFO] 压缩包包含: QSerial_wx.exe + themes目录 + config.json
+        powershell -Command "Compress-Archive -Path QSerial.exe,themes,config.json -DestinationPath QSerial_v%VERSION%.zip -Force"
+        echo [INFO] 压缩包包含: QSerial.exe + themes目录 + config.json
     ) else (
-        powershell -Command "Compress-Archive -Path QSerial_wx.exe,themes -DestinationPath QSerial_wx_v%VERSION%.zip -Force"
-        echo [INFO] 压缩包包含: QSerial_wx.exe + themes目录
+        powershell -Command "Compress-Archive -Path QSerial.exe,themes -DestinationPath QSerial_v%VERSION%.zip -Force"
+        echo [INFO] 压缩包包含: QSerial.exe + themes目录
     )
 ) else (
-    powershell -Command "Compress-Archive -Path QSerial_wx.exe -DestinationPath QSerial_wx_v%VERSION%.zip -Force"
-    echo [INFO] 压缩包包含: QSerial_wx.exe（themes已内嵌）
+    powershell -Command "Compress-Archive -Path QSerial.exe -DestinationPath QSerial_v%VERSION%.zip -Force"
+    echo [INFO] 压缩包包含: QSerial.exe（themes已内嵌）
 )
 cd ..
 echo.
 
 echo ===================================
 echo   Build completed!
-echo   EXE: dist\QSerial_wx.exe
-echo   ZIP: dist\QSerial_wx_v%VERSION%.zip
+echo   EXE: dist\QSerial.exe
+echo   ZIP: dist\QSerial_v%VERSION%.zip
 echo ===================================
 echo.
 echo [提示] wxPython版本性能更好，支持大文本框

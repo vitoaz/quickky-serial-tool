@@ -118,6 +118,39 @@ class SendSettingsPanel(wx.StaticBoxSizer):
             fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
             self.period_spin.SetForegroundColour(fg_color)
             self.period_spin.Refresh()
+            
+            # 应用到Panel和Label
+            panel_bg = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            panel_fg = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
+            
+            # 设置StaticBox（边框标题）的颜色
+            static_box = self.GetStaticBox()
+            if static_box:
+                static_box.SetForegroundColour(panel_fg)
+            
+            # 递归应用到所有StaticText、RadioButton、CheckBox和Panel
+            def apply_to_labels(widget):
+                try:
+                    if isinstance(widget, wx.StaticText):
+                        widget.SetForegroundColour(panel_fg)
+                        widget.SetBackgroundColour(panel_bg)
+                    elif isinstance(widget, (wx.RadioButton, wx.CheckBox)):
+                        # RadioButton和CheckBox也需要设置前景色
+                        widget.SetForegroundColour(panel_fg)
+                    elif isinstance(widget, wx.Panel):
+                        widget.SetBackgroundColour(panel_bg)
+                    
+                    if hasattr(widget, 'GetChildren'):
+                        for child in widget.GetChildren():
+                            apply_to_labels(child)
+                except:
+                    pass
+            
+            # 从StaticBox开始递归（self是Sizer，GetStaticBox()获取StaticBox和其子控件）
+            if static_box:
+                # StaticBox包含所有子控件
+                apply_to_labels(static_box)
+            
         except Exception as e:
             print(f"应用主题到发送设置面板时出错: {e}")
 

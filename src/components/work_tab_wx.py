@@ -143,11 +143,11 @@ class WorkTab(wx.Panel):
         right_sizer = wx.BoxSizer(wx.VERTICAL)
         
         # 接收区
-        receive_box = wx.StaticBox(self.right_panel, label='数据接收')
-        receive_sizer = wx.StaticBoxSizer(receive_box, wx.VERTICAL)
+        self.receive_box = wx.StaticBox(self.right_panel, label='数据接收')
+        receive_sizer = wx.StaticBoxSizer(self.receive_box, wx.VERTICAL)
         
         # 使用 StyledTextCtrl 实现高性能文本显示
-        self.receive_text = stc.StyledTextCtrl(self.right_panel, style=wx.BORDER_NONE)
+        self.receive_text = stc.StyledTextCtrl(self.right_panel, style=wx.BORDER_SIMPLE)
         self._setup_stc(self.receive_text)
         self.receive_text.SetReadOnly(True)
         
@@ -155,13 +155,13 @@ class WorkTab(wx.Panel):
         right_sizer.Add(receive_sizer, 1, wx.EXPAND | wx.BOTTOM, 5)
         
         # 发送区
-        send_box = wx.StaticBox(self.right_panel, label='数据发送')
-        send_sizer = wx.StaticBoxSizer(send_box, wx.VERTICAL)
+        self.send_box = wx.StaticBox(self.right_panel, label='数据发送')
+        send_sizer = wx.StaticBoxSizer(self.send_box, wx.VERTICAL)
         
         # 发送文本框
         self.send_text = wx.TextCtrl(
             self.right_panel,
-            style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.BORDER_NONE,
+            style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.BORDER_SIMPLE,
             size=(-1, 100)
         )
         # 设置字体 - 从配置中获取字体大小
@@ -202,12 +202,11 @@ class WorkTab(wx.Panel):
         right_sizer.Add(send_sizer, 0, wx.EXPAND)
         
         # 统计栏
-        stats_panel = wx.Panel(self.right_panel)
-        stats_panel.SetBackgroundColour(wx.Colour(239, 239, 239))
+        self.stats_panel = wx.Panel(self.right_panel)
         stats_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
         # 复位计数（使用StaticText模拟超链接，放在最右侧）
-        self.reset_count_label = wx.StaticText(stats_panel, label='复位计数')
+        self.reset_count_label = wx.StaticText(self.stats_panel, label='复位计数')
         self.reset_count_label.SetForegroundColour(wx.Colour(0, 102, 204))
         self.reset_count_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
         # 设置默认下划线
@@ -220,12 +219,12 @@ class WorkTab(wx.Panel):
         stats_sizer.AddStretchSpacer(1)
         
         # RX/TX计数（合并到一个label，设置最小宽度，右对齐）
-        self.count_label = wx.StaticText(stats_panel, label='RX: 0  TX: 0', style=wx.ALIGN_RIGHT)
+        self.count_label = wx.StaticText(self.stats_panel, label='RX: 0  TX: 0', style=wx.ALIGN_RIGHT)
         self.count_label.SetMinSize((150, -1))  # 设置最小宽度150像素
         stats_sizer.Add(self.count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         
-        stats_panel.SetSizer(stats_sizer)
-        right_sizer.Add(stats_panel, 0, wx.EXPAND | wx.TOP, 2)
+        self.stats_panel.SetSizer(stats_sizer)
+        right_sizer.Add(self.stats_panel, 0, wx.EXPAND | wx.TOP, 2)
         
         self.right_panel.SetSizer(right_sizer)
     
@@ -830,6 +829,64 @@ class WorkTab(wx.Panel):
             link_color = theme_manager.hex_to_wx_colour(colors.get('link_color', '#4FC3F7'))
             self.clear_send_label.SetForegroundColour(link_color)
             self.reset_count_label.SetForegroundColour(link_color)
+            
+            # 应用到主Panel和子Panel的背景色
+            panel_bg = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            panel_fg = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
+            
+            self.SetBackgroundColour(panel_bg)
+            if hasattr(self, 'left_panel'):
+                self.left_panel.SetBackgroundColour(panel_bg)
+            if hasattr(self, 'right_panel'):
+                self.right_panel.SetBackgroundColour(panel_bg)
+            if hasattr(self, 'stats_panel'):
+                self.stats_panel.SetBackgroundColour(panel_bg)
+            
+            # 设置StaticBox的标题颜色
+            if hasattr(self, 'receive_box'):
+                self.receive_box.SetForegroundColour(panel_fg)
+            if hasattr(self, 'send_box'):
+                self.send_box.SetForegroundColour(panel_fg)
+            
+            # 递归应用到所有Panel和StaticText（除了链接和特殊控件）
+            from utils.custom_controls_wx import ThemedButton, ThemedComboBox
+            
+            def apply_to_children(widget):
+                try:
+                    # 跳过已有apply_theme方法的自定义控件（它们自己管理主题）
+                    skip_custom_types = (ThemedButton, ThemedComboBox)
+                    # 跳过已经单独处理主题的控件
+                    skip_types = (wx.TextCtrl, wx.stc.StyledTextCtrl, wx.ListCtrl)
+                    
+                    if isinstance(widget, skip_custom_types):
+                        # 这些控件已经通过自己的apply_theme方法处理了
+                        return
+                    
+                    if isinstance(widget, skip_types):
+                        # 这些控件已经单独处理了主题
+                        return
+                    
+                    if isinstance(widget, wx.Panel):
+                        widget.SetBackgroundColour(panel_bg)
+                    elif isinstance(widget, wx.StaticText):
+                        # 跳过链接颜色的label
+                        skip_links = [self.clear_send_label, self.reset_count_label]
+                        # 同时跳过receive_settings中的clear_link
+                        if hasattr(self, 'receive_settings') and hasattr(self.receive_settings, 'clear_link'):
+                            skip_links.append(self.receive_settings.clear_link)
+                        
+                        if widget not in skip_links:
+                            widget.SetForegroundColour(panel_fg)
+                            widget.SetBackgroundColour(panel_bg)
+                    
+                    # 递归处理子控件
+                    if hasattr(widget, 'GetChildren'):
+                        for child in widget.GetChildren():
+                            apply_to_children(child)
+                except:
+                    pass
+            
+            apply_to_children(self)
             
             self.Refresh()
         

@@ -57,6 +57,13 @@ class CommandPanel(wx.Panel):
     
     def apply_theme(self, theme_manager):
         """应用主题"""
+        # 设置命令面板自身的背景色
+        if theme_manager:
+            colors = theme_manager.get_theme_colors()
+            bg_color = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            self.SetBackgroundColour(bg_color)
+            self.notebook.SetBackgroundColour(bg_color)
+        
         if hasattr(self.quick_commands_panel, 'apply_theme'):
             self.quick_commands_panel.apply_theme(theme_manager)
         if hasattr(self.send_history_panel, 'apply_theme'):

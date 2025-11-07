@@ -28,14 +28,14 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
     
     def _create_widgets(self):
         """创建控件"""
-        panel = wx.Panel(self.GetStaticBox())
+        self.panel = wx.Panel(self.GetStaticBox())
         sizer = wx.BoxSizer(wx.VERTICAL)
         
         # 模式
         mode_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        mode_sizer.Add(wx.StaticText(panel, label='模式:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.text_radio = wx.RadioButton(panel, label='TEXT', style=wx.RB_GROUP)
-        self.hex_radio = wx.RadioButton(panel, label='HEX')
+        mode_sizer.Add(wx.StaticText(self.panel, label='模式:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.text_radio = wx.RadioButton(self.panel, label='TEXT', style=wx.RB_GROUP)
+        self.hex_radio = wx.RadioButton(self.panel, label='HEX')
         self.text_radio.Bind(wx.EVT_RADIOBUTTON, self._on_mode_changed)
         self.hex_radio.Bind(wx.EVT_RADIOBUTTON, self._on_mode_changed)
         mode_sizer.Add(self.text_radio, 0, wx.RIGHT, 5)
@@ -44,9 +44,9 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         
         # 编码方式
         encoding_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        encoding_sizer.Add(wx.StaticText(panel, label='编码:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.encoding_utf8 = wx.RadioButton(panel, label='UTF-8', style=wx.RB_GROUP)
-        self.encoding_ascii = wx.RadioButton(panel, label='ASCII')
+        encoding_sizer.Add(wx.StaticText(self.panel, label='编码:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.encoding_utf8 = wx.RadioButton(self.panel, label='UTF-8', style=wx.RB_GROUP)
+        self.encoding_ascii = wx.RadioButton(self.panel, label='ASCII')
         self.encoding_utf8.Bind(wx.EVT_RADIOBUTTON, self._on_setting_changed)
         self.encoding_ascii.Bind(wx.EVT_RADIOBUTTON, self._on_setting_changed)
         encoding_sizer.Add(self.encoding_utf8, 0, wx.RIGHT, 5)
@@ -54,29 +54,29 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         sizer.Add(encoding_sizer, 0, wx.ALL, 3)
         
         # 日志模式
-        self.log_mode_check = wx.CheckBox(panel, label='日志模式（添加时间戳）')
+        self.log_mode_check = wx.CheckBox(self.panel, label='日志模式（添加时间戳）')
         self.log_mode_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
         sizer.Add(self.log_mode_check, 0, wx.ALL, 3)
         
         # 保存日志文件
-        self.save_log_check = wx.CheckBox(panel, label='保存日志文件')
+        self.save_log_check = wx.CheckBox(self.panel, label='保存日志文件')
         self.save_log_check.Bind(wx.EVT_CHECKBOX, self._on_save_log_changed)
         sizer.Add(self.save_log_check, 0, wx.ALL, 3)
         
         # 串口自动重连
-        self.auto_reconnect_check = wx.CheckBox(panel, label='串口自动重连')
+        self.auto_reconnect_check = wx.CheckBox(self.panel, label='串口自动重连')
         self.auto_reconnect_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
         sizer.Add(self.auto_reconnect_check, 0, wx.ALL, 3)
         
         # 接收自动滚屏
-        self.auto_scroll_check = wx.CheckBox(panel, label='接收自动滚屏')
+        self.auto_scroll_check = wx.CheckBox(self.panel, label='接收自动滚屏')
         self.auto_scroll_check.SetValue(True)
         self.auto_scroll_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
         sizer.Add(self.auto_scroll_check, 0, wx.ALL, 3)
         
         # 清除接收按钮（蓝色超链接样式）
-        self.clear_link = wx.StaticText(panel, label='清除接收')
-        self.clear_link.SetForegroundColour(wx.Colour(0, 102, 204))
+        self.clear_link = wx.StaticText(self.panel, label='清除接收')
+        # 初始颜色将由apply_theme设置
         self.clear_link.SetCursor(wx.Cursor(wx.CURSOR_HAND))
         # 设置默认下划线
         font = self.clear_link.GetFont()
@@ -85,8 +85,8 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         self.clear_link.Bind(wx.EVT_LEFT_DOWN, lambda e: self.on_clear_callback() if self.on_clear_callback else None)
         sizer.Add(self.clear_link, 0, wx.ALL, 3)
         
-        panel.SetSizer(sizer)
-        self.Add(panel, 0, wx.ALL | wx.EXPAND, 8)
+        self.panel.SetSizer(sizer)
+        self.Add(self.panel, 0, wx.ALL | wx.EXPAND, 8)
     
     def _on_mode_changed(self, event):
         """模式变化事件"""
@@ -155,6 +155,44 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         """应用主题"""
         if theme_manager:
             colors = theme_manager.get_theme_colors()
+            
+            # 应用到Panel和Label
+            panel_bg = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            panel_fg = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
+            
+            # 设置StaticBox（边框标题）的颜色
+            static_box = self.GetStaticBox()
+            if static_box:
+                static_box.SetForegroundColour(panel_fg)
+            
+            # 先设置链接颜色（在递归之前）
             link_color = theme_manager.hex_to_wx_colour(colors.get('link_color', '#4FC3F7'))
             self.clear_link.SetForegroundColour(link_color)
+            self.clear_link.SetBackgroundColour(panel_bg)
+            
+            # 递归应用到所有StaticText、RadioButton、CheckBox和Panel
+            def apply_to_labels(widget):
+                try:
+                    # 完全跳过清除接收链接
+                    if widget == self.clear_link:
+                        return
+                    
+                    if isinstance(widget, wx.StaticText):
+                        widget.SetForegroundColour(panel_fg)
+                        widget.SetBackgroundColour(panel_bg)
+                    elif isinstance(widget, (wx.RadioButton, wx.CheckBox)):
+                        # RadioButton和CheckBox也需要设置前景色
+                        widget.SetForegroundColour(panel_fg)
+                    elif isinstance(widget, wx.Panel):
+                        widget.SetBackgroundColour(panel_bg)
+                    
+                    if hasattr(widget, 'GetChildren'):
+                        for child in widget.GetChildren():
+                            apply_to_labels(child)
+                except:
+                    pass
+            
+            # 从内部panel开始递归（panel包含所有的StaticText和CheckBox）
+            if hasattr(self, 'panel'):
+                apply_to_labels(self.panel)
 
