@@ -29,17 +29,11 @@ class QuickCommandsPanel(wx.Panel):
         
         # 使用Notebook创建分组Tab
         self.group_notebook = wx.Notebook(self)
+        # 绑定右键事件到Notebook（用于Tab标签上的右键菜单）
         self.group_notebook.Bind(wx.EVT_RIGHT_DOWN, self._show_group_menu)
-        # 确保右键菜单在所有情况下都能弹出
-        self.group_notebook.Bind(wx.EVT_CONTEXT_MENU, self._on_context_menu)
         
         sizer.Add(self.group_notebook, 1, wx.EXPAND)
         self.SetSizer(sizer)
-    
-    def _on_context_menu(self, event):
-        """处理右键上下文菜单事件"""
-        # 转换为EVT_RIGHT_DOWN事件处理
-        self._show_group_menu(event)
     
     def _load_groups(self):
         """加载分组"""
@@ -175,7 +169,9 @@ class QuickCommandsPanel(wx.Panel):
     
     def _add_group(self, event):
         """添加分组"""
-        dialog = InputDialog(self, '新建分组', '请输入分组名称:')
+        # 使用主窗口作为父控件，确保对话框相对主窗口居中
+        parent = self.main_window if self.main_window else self
+        dialog = InputDialog(parent, '新建分组', '请输入分组名称:')
         if dialog.ShowModal() == wx.ID_OK:
             name = dialog.GetValue()
             if name:
@@ -192,7 +188,9 @@ class QuickCommandsPanel(wx.Panel):
         groups = self.config_manager.get_quick_command_groups()
         old_name = groups[tab_index]['name']
         
-        dialog = InputDialog(self, '编辑分组', '请输入分组名称:', old_name)
+        # 使用主窗口作为父控件，确保对话框相对主窗口居中
+        parent = self.main_window if self.main_window else self
+        dialog = InputDialog(parent, '编辑分组', '请输入分组名称:', old_name)
         if dialog.ShowModal() == wx.ID_OK:
             name = dialog.GetValue()
             if name and name != old_name:
@@ -218,7 +216,9 @@ class QuickCommandsPanel(wx.Panel):
     
     def _add_command(self, list_ctrl):
         """添加指令"""
-        dialog = CommandDialog(self, '添加快捷指令')
+        # 使用主窗口作为父控件，确保对话框相对主窗口居中
+        parent = self.main_window if self.main_window else self
+        dialog = CommandDialog(parent, '添加快捷指令')
         if dialog.ShowModal() == wx.ID_OK:
             name, mode, command = dialog.GetResult()
             
@@ -253,7 +253,9 @@ class QuickCommandsPanel(wx.Panel):
         if not isinstance(data, str):
             data = str(data) if data is not None else ''
         
-        dialog = CommandDialog(self, '编辑快捷指令', 
+        # 使用主窗口作为父控件，确保对话框相对主窗口居中
+        parent = self.main_window if self.main_window else self
+        dialog = CommandDialog(parent, '编辑快捷指令', 
                               cmd.get('name', ''), cmd.get('mode', 'TEXT'), data)
         if dialog.ShowModal() == wx.ID_OK:
             name, mode, command = dialog.GetResult()
@@ -408,7 +410,6 @@ class CommandDialog(wx.Dialog):
         
         self.result = None
         self._create_widgets(name, mode, command)
-        self.CenterOnParent()
     
     def _create_widgets(self, name, mode, command):
         """创建控件"""
@@ -457,6 +458,7 @@ class CommandDialog(wx.Dialog):
         
         self.SetSizer(sizer)
         self.Fit()
+        self.CenterOnParent()
         
         self.name_ctrl.SetFocus()
     
@@ -494,7 +496,6 @@ class InputDialog(wx.Dialog):
         
         self.value = None
         self._create_widgets(label, initial_value)
-        self.CenterOnParent()
     
     def _create_widgets(self, label, initial_value):
         """创建控件"""
@@ -528,6 +529,7 @@ class InputDialog(wx.Dialog):
         
         self.SetSizer(sizer)
         self.Fit()
+        self.CenterOnParent()
         
         self.entry.SetFocus()
         self.entry.Bind(wx.EVT_TEXT_ENTER, self._on_ok)

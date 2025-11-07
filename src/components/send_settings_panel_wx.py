@@ -22,6 +22,7 @@ class SendSettingsPanel(wx.StaticBoxSizer):
         self.on_change_callback = on_change_callback
         self.on_mode_change_callback = on_mode_change_callback
         self.old_mode = 'TEXT'
+        self.current_port = None  # 当前串口
         
         self._create_widgets()
     
@@ -75,8 +76,13 @@ class SendSettingsPanel(wx.StaticBoxSizer):
     
     def _on_setting_changed(self, event):
         """设置变化事件"""
-        if self.on_change_callback:
-            self.on_change_callback(self.get_settings())
+        # 保存配置到配置管理器
+        if self.current_port:
+            settings = self.get_settings()
+            self.config_manager.update_send_settings(self.current_port, settings)
+            
+            if self.on_change_callback:
+                self.on_change_callback(settings)
     
     def get_settings(self):
         """获取当前设置"""
@@ -88,6 +94,8 @@ class SendSettingsPanel(wx.StaticBoxSizer):
     
     def load_config(self, port, config):
         """加载配置"""
+        self.current_port = port  # 保存当前串口
+        
         if config['mode'] == 'HEX':
             self.hex_radio.SetValue(True)
         else:

@@ -22,6 +22,7 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         self.on_change_callback = on_change_callback
         self.on_clear_callback = on_clear_callback
         self.on_save_log_callback = on_save_log_callback
+        self.current_port = None  # 当前串口
         
         self._create_widgets()
     
@@ -97,8 +98,13 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
     
     def _on_setting_changed(self, event):
         """设置变化事件"""
-        if self.on_change_callback:
-            self.on_change_callback(self.get_settings())
+        # 保存配置到配置管理器
+        if self.current_port:
+            settings = self.get_settings()
+            self.config_manager.update_receive_settings(self.current_port, settings)
+            
+            if self.on_change_callback:
+                self.on_change_callback(settings)
     
     def _on_save_log_changed(self, event):
         """保存日志勾选变化"""
@@ -124,6 +130,8 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
     
     def load_config(self, port, config):
         """加载配置"""
+        self.current_port = port  # 保存当前串口
+        
         if config['mode'] == 'HEX':
             self.hex_radio.SetValue(True)
             self.encoding_utf8.Enable(False)

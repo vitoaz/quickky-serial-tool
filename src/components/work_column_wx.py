@@ -62,19 +62,19 @@ class WorkColumn(wx.Panel):
         """单击事件"""
         # 获取点击位置
         pos = event.GetPosition()
-        # 让事件继续传播，以便Notebook能正常切换Tab
-        event.Skip()
         
-        # 延迟执行，确保Tab已经切换
-        wx.CallAfter(self._check_add_tab_click)
-    
-    def _check_add_tab_click(self):
-        """检查是否点击了加号Tab"""
-        current_index = self.notebook.GetSelection()
-        # 如果选中的是加号Tab（最后一个）
-        if current_index == self.notebook.GetPageCount() - 1:
-            # 添加新Tab
+        # 使用HitTest直接判断点击的Tab
+        tab_index, flags = self.notebook.HitTest(pos)
+        
+        # 如果点击的是加号Tab（最后一个）
+        if tab_index == self.notebook.GetPageCount() - 1:
+            # 添加新Tab（内部会自动选中新Tab）
             self._add_new_tab()
+            # 不让事件继续传播，避免切换到加号Tab
+            return
+        
+        # 其他情况让事件继续传播
+        event.Skip()
     
     def _add_new_tab(self, is_first=False):
         """添加新Tab"""

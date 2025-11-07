@@ -52,6 +52,15 @@ class WorkTab(wx.Panel):
         self.flush_timer = None
         self.flush_interval_ms = 100
         
+        # 日志级别样式定义
+        self.level_styles = {
+            'normal': 0,   # 使用默认样式
+            'info': 1,     # 信息（蓝色）
+            'error': 2,    # 错误（红色）
+            'success': 3,  # 成功（绿色）
+            'warning': 4   # 警告（红色）
+        }
+        
         # 自动重连相关
         self.auto_reconnect_enabled = False
         self.reconnect_timer = None
@@ -256,10 +265,39 @@ class WorkTab(wx.Panel):
         stc_ctrl.StyleSetFont(stc.STC_STYLE_DEFAULT, font)
         stc_ctrl.StyleClearAll()
         
+        # 初始化日志级别样式颜色
+        self._initialize_receive_styles(stc_ctrl, font)
+        
         # 设置边距
         stc_ctrl.SetMarginWidth(0, 0)  # 行号边距
         stc_ctrl.SetMarginWidth(1, 0)  # 符号边距
         stc_ctrl.SetMarginWidth(2, 0)  # 折叠边距
+    
+    def _initialize_receive_styles(self, stc_ctrl, font):
+        """初始化接收区日志级别样式"""
+        # 定义默认颜色
+        default_colors = {
+            'normal': '#000000',
+            'info': '#0066CC',
+            'error': '#D32F2F',
+            'success': '#388E3C',
+            'warning': '#D32F2F',
+        }
+        
+        # 从主题管理器获取颜色（如果有）
+        colors = self.theme_manager.get_theme_colors() if self.theme_manager else {}
+        
+        # 为每个级别设置样式
+        for level, style_id in self.level_styles.items():
+            if level == 'normal':
+                color = colors.get('text_fg', default_colors['normal'])
+            else:
+                color_key = f'log_{level}_color'
+                color = colors.get(color_key, default_colors.get(level, default_colors['error']))
+            
+            # 设置样式
+            stc_ctrl.StyleSetFont(style_id, font)
+            stc_ctrl.StyleSetForeground(style_id, wx.Colour(color))
     
     def _setup_callbacks(self):
         """设置回调函数"""
@@ -606,10 +644,22 @@ class WorkTab(wx.Panel):
         
         self.receive_text.SetReadOnly(False)
         
-        # 批量插入文本
+        # 批量插入文本，应用样式
         for item in self.display_buffer:
             text = item['text']
+            level = item.get('level', 'normal')
+            style_id = self.level_styles.get(level, 0)
+            
+            # 获取当前文本末尾位置
+            pos = self.receive_text.GetLength()
+            
+            # 插入文本
             self.receive_text.AppendText(text)
+            
+            # 应用样式到新插入的文本
+            end_pos = self.receive_text.GetLength()
+            self.receive_text.StartStyling(pos)
+            self.receive_text.SetStyling(end_pos - pos, style_id)
         
         # 清空缓冲区
         self.display_buffer.clear()
@@ -752,6 +802,9 @@ class WorkTab(wx.Panel):
             font = wx.Font(font_size, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, 
                           wx.FONTWEIGHT_NORMAL, False, 'Consolas')
             self.receive_text.StyleSetFont(stc.STC_STYLE_DEFAULT, font)
+            
+            # 重新初始化日志级别样式（应用新主题颜色）
+            self._initialize_receive_styles(self.receive_text, font)
             
             # 应用到发送区
             self.send_text.SetBackgroundColour(bg_color)
