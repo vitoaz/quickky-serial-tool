@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 快捷指令面板组件 (wxPython版本)
 
@@ -9,6 +8,7 @@ Email: vitoyuz@foxmail.com
 import wx
 import wx.lib.agw.aui as aui
 from utils.hex_utils import HexUtils
+from utils.custom_controls_wx import ThemedButton
 
 
 class QuickCommandsPanel(wx.Panel):
@@ -399,7 +399,31 @@ class QuickCommandsPanel(wx.Panel):
     
     def apply_theme(self, theme_manager):
         """应用主题"""
-        pass
+        colors = theme_manager.get_theme_colors()
+        if not colors:
+            return
+        
+        try:
+            # 应用到所有分组的ListCtrl
+            bg_color = theme_manager.hex_to_wx_colour(colors.get('text_bg', '#FFFFFF'))
+            fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
+            
+            for i in range(self.group_notebook.GetPageCount()):
+                page = self.group_notebook.GetPage(i)
+                # 查找ListCtrl
+                for child in page.GetChildren():
+                    if isinstance(child, wx.ListCtrl):
+                        child.SetBackgroundColour(bg_color)
+                        child.SetForegroundColour(fg_color)
+                        child.Refresh()
+            
+            # 应用到Notebook
+            self.group_notebook.SetBackgroundColour(bg_color)
+            self.group_notebook.SetForegroundColour(fg_color)
+            self.group_notebook.Refresh()
+            
+        except Exception as e:
+            print(f"应用主题到快捷命令面板时出错: {e}")
 
 
 class CommandDialog(wx.Dialog):
@@ -447,8 +471,8 @@ class CommandDialog(wx.Dialog):
         
         # 按钮
         btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = wx.Button(self, wx.ID_OK, label='确定')
-        cancel_btn = wx.Button(self, wx.ID_CANCEL, label='取消')
+        ok_btn = ThemedButton(self, wx.ID_OK, label='确定')
+        cancel_btn = ThemedButton(self, wx.ID_CANCEL, label='取消')
         ok_btn.Bind(wx.EVT_BUTTON, self._on_ok)
         cancel_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CANCEL))
         btn_sizer.AddButton(ok_btn)
@@ -518,8 +542,8 @@ class InputDialog(wx.Dialog):
         
         # 按钮
         btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = wx.Button(self, wx.ID_OK, label='确定')
-        cancel_btn = wx.Button(self, wx.ID_CANCEL, label='取消')
+        ok_btn = ThemedButton(self, wx.ID_OK, label='确定')
+        cancel_btn = ThemedButton(self, wx.ID_CANCEL, label='取消')
         ok_btn.Bind(wx.EVT_BUTTON, self._on_ok)
         cancel_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CANCEL))
         btn_sizer.AddButton(ok_btn)

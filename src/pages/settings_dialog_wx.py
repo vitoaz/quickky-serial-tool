@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 设置对话框 (wxPython版本)
 

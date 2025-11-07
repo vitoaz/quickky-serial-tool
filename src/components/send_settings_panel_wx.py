@@ -109,5 +109,15 @@ class SendSettingsPanel(wx.StaticBoxSizer):
     
     def apply_theme(self, theme_manager):
         """应用主题"""
-        pass
+        colors = theme_manager.get_theme_colors()
+        if not colors:
+            return
+        
+        try:
+            # SpinCtrl是原生控件，只支持前景色（文字颜色）
+            fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
+            self.period_spin.SetForegroundColour(fg_color)
+            self.period_spin.Refresh()
+        except Exception as e:
+            print(f"应用主题到发送设置面板时出错: {e}")
 

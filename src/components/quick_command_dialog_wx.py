@@ -6,6 +6,7 @@ Email: vitoyuz@foxmail.com
 """
 
 import wx
+from utils.custom_controls_wx import ThemedButton
 
 
 class QuickCommandDialog(wx.Dialog):
@@ -62,9 +63,9 @@ class QuickCommandDialog(wx.Dialog):
         
         # 按钮
         btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = wx.Button(panel, wx.ID_OK)
+        ok_btn = ThemedButton(panel, wx.ID_OK)
         ok_btn.Bind(wx.EVT_BUTTON, self._on_ok)
-        cancel_btn = wx.Button(panel, wx.ID_CANCEL)
+        cancel_btn = ThemedButton(panel, wx.ID_CANCEL)
         btn_sizer.AddButton(ok_btn)
         btn_sizer.AddButton(cancel_btn)
         btn_sizer.Realize()

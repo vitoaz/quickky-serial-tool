@@ -15,6 +15,7 @@ from .receive_settings_panel_wx import ReceiveSettingsPanel
 from .send_settings_panel_wx import SendSettingsPanel
 from utils.serial_manager import SerialManager
 from utils.hex_utils import HexUtils
+from utils.custom_controls_wx import ThemedButton
 
 
 class WorkTab(wx.Panel):
@@ -111,7 +112,7 @@ class WorkTab(wx.Panel):
         left_sizer.Add(self.serial_settings, 0, wx.EXPAND | wx.ALL, 3)
         
         # 连接按钮
-        self.connect_btn = wx.Button(self.left_panel, label='打开串口')
+        self.connect_btn = ThemedButton(self.left_panel, label='打开串口')
         self.connect_btn.Bind(wx.EVT_BUTTON, self._toggle_connection)
         left_sizer.Add(self.connect_btn, 0, wx.EXPAND | wx.ALL, 10)
         
@@ -179,19 +180,11 @@ class WorkTab(wx.Panel):
         self.clear_send_label = wx.StaticText(btn_panel, label='清除发送')
         self.clear_send_label.SetForegroundColour(wx.Colour(0, 102, 204))
         self.clear_send_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        # 设置默认下划线
+        font = self.clear_send_label.GetFont()
+        font.MakeUnderlined()
+        self.clear_send_label.SetFont(font)
         self.clear_send_label.Bind(wx.EVT_LEFT_DOWN, self._clear_send)
-        def on_enter_clear(e):
-            font = self.clear_send_label.GetFont()
-            font.MakeUnderlined()
-            self.clear_send_label.SetFont(font)
-        
-        def on_leave_clear(e):
-            font = self.clear_send_label.GetFont()
-            font = font.GetBaseFont()
-            self.clear_send_label.SetFont(font)
-        
-        self.clear_send_label.Bind(wx.EVT_ENTER_WINDOW, on_enter_clear)
-        self.clear_send_label.Bind(wx.EVT_LEAVE_WINDOW, on_leave_clear)
         btn_sizer.Add(self.clear_send_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         
         # 错误提示
@@ -199,7 +192,7 @@ class WorkTab(wx.Panel):
         btn_sizer.Add(self.send_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
         
         # 发送按钮
-        self.send_btn = wx.Button(btn_panel, label='发送')
+        self.send_btn = ThemedButton(btn_panel, label='发送')
         self.send_btn.Enable(False)
         self.send_btn.Bind(wx.EVT_BUTTON, self._toggle_send)
         btn_sizer.Add(self.send_btn, 0, wx.ALIGN_CENTER_VERTICAL)
@@ -213,34 +206,23 @@ class WorkTab(wx.Panel):
         stats_panel.SetBackgroundColour(wx.Colour(239, 239, 239))
         stats_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
-        stats_sizer.AddStretchSpacer(1)
-        
-        # RX计数
-        self.rx_count_label = wx.StaticText(stats_panel, label='RX: 0')
-        stats_sizer.Add(self.rx_count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 15)
-        
-        # TX计数
-        self.tx_count_label = wx.StaticText(stats_panel, label='TX: 0')
-        stats_sizer.Add(self.tx_count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 15)
-        
-        # 复位计数（使用StaticText模拟超链接）
+        # 复位计数（使用StaticText模拟超链接，放在最右侧）
         self.reset_count_label = wx.StaticText(stats_panel, label='复位计数')
         self.reset_count_label.SetForegroundColour(wx.Colour(0, 102, 204))
         self.reset_count_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        # 设置默认下划线
+        font = self.reset_count_label.GetFont()
+        font.MakeUnderlined()
+        self.reset_count_label.SetFont(font)
         self.reset_count_label.Bind(wx.EVT_LEFT_DOWN, self._reset_count)
-        def on_enter(e):
-            font = self.reset_count_label.GetFont()
-            font.MakeUnderlined()
-            self.reset_count_label.SetFont(font)
+        stats_sizer.Add(self.reset_count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
         
-        def on_leave(e):
-            font = self.reset_count_label.GetFont()
-            font = font.GetBaseFont()  # 移除下划线
-            self.reset_count_label.SetFont(font)
+        stats_sizer.AddStretchSpacer(1)
         
-        self.reset_count_label.Bind(wx.EVT_ENTER_WINDOW, on_enter)
-        self.reset_count_label.Bind(wx.EVT_LEAVE_WINDOW, on_leave)
-        stats_sizer.Add(self.reset_count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        # RX/TX计数（合并到一个label，设置最小宽度，右对齐）
+        self.count_label = wx.StaticText(stats_panel, label='RX: 0  TX: 0', style=wx.ALIGN_RIGHT)
+        self.count_label.SetMinSize((150, -1))  # 设置最小宽度150像素
+        stats_sizer.Add(self.count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         
         stats_panel.SetSizer(stats_sizer)
         right_sizer.Add(stats_panel, 0, wx.EXPAND | wx.TOP, 2)
@@ -249,15 +231,19 @@ class WorkTab(wx.Panel):
     
     def _setup_stc(self, stc_ctrl):
         """设置StyledTextCtrl的属性以优化性能"""
-        # 禁用自动换行（提高性能）
-        stc_ctrl.SetWrapMode(stc.STC_WRAP_NONE)
+        # 启用自动换行（避免横向滚动条）
+        stc_ctrl.SetWrapMode(stc.STC_WRAP_WORD)  # 按单词换行
         
         # 设置缓冲区大小
         stc_ctrl.SetBufferedDraw(True)
         
-        # 禁用不必要的功能
-        stc_ctrl.SetUseHorizontalScrollBar(True)
-        stc_ctrl.SetUseVerticalScrollBar(True)
+        # 设置滚动条
+        stc_ctrl.SetUseHorizontalScrollBar(False)  # 禁用横向滚动条（因为启用了自动换行）
+        stc_ctrl.SetUseVerticalScrollBar(True)  # 启用纵向滚动条
+        
+        # 设置滚动宽度跟踪（确保不会出现不必要的滚动）
+        stc_ctrl.SetScrollWidth(1)
+        stc_ctrl.SetScrollWidthTracking(True)
         
         # 设置字体 - 从配置中获取字体大小
         font_size = self.config_manager.get_font_size()
@@ -463,7 +449,7 @@ class WorkTab(wx.Panel):
         
         # 更新RX计数
         self.rx_count += len(data)
-        self.rx_count_label.SetLabel(f'RX: {self.rx_count}')
+        self.count_label.SetLabel(f'RX: {self.rx_count}  TX: {self.tx_count}')
         
         # 格式化数据
         if settings['mode'] == 'HEX':
@@ -544,7 +530,7 @@ class WorkTab(wx.Panel):
                                     self.receive_settings.get_settings()['encoding']):
             # 更新TX计数
             self.tx_count += byte_count
-            self.tx_count_label.SetLabel(f'TX: {self.tx_count}')
+            self.count_label.SetLabel(f'RX: {self.rx_count}  TX: {self.tx_count}')
             
             # 添加到发送历史
             self.config_manager.add_send_history(data, send_mode)
@@ -718,8 +704,7 @@ class WorkTab(wx.Panel):
         """复位计数"""
         self.rx_count = 0
         self.tx_count = 0
-        self.rx_count_label.SetLabel('RX: 0')
-        self.tx_count_label.SetLabel('TX: 0')
+        self.count_label.SetLabel('RX: 0  TX: 0')
     
     def _start_auto_reconnect(self):
         """开始自动重连"""
@@ -790,6 +775,12 @@ class WorkTab(wx.Panel):
             return
         
         try:
+            # 应用到按钮
+            btn_bg = theme_manager.hex_to_wx_colour(colors.get('button_bg', '#0078D4'))
+            btn_fg = theme_manager.hex_to_wx_colour(colors.get('button_fg', '#FFFFFF'))
+            self.connect_btn.apply_theme(btn_bg, btn_fg)
+            self.send_btn.apply_theme(btn_bg, btn_fg)
+            
             # 应用到接收区 (STC)
             bg_color = theme_manager.hex_to_wx_colour(colors.get('text_bg', '#FFFFFF'))
             fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
@@ -810,6 +801,22 @@ class WorkTab(wx.Panel):
             self.send_text.SetBackgroundColour(bg_color)
             self.send_text.SetForegroundColour(fg_color)
             self.send_text.SetFont(font)
+            self.send_text.Refresh()
+            
+            # 强制更新接收区背景
+            self.receive_text.SetCaretForeground(fg_color)
+            
+            # 设置滚动条颜色（仅对StyledTextCtrl有效）
+            try:
+                # 尝试设置滚动条背景色
+                scrollbar_bg = theme_manager.hex_to_wx_colour(colors.get('scrollbar_bg', bg_color))
+                scrollbar_fg = theme_manager.hex_to_wx_colour(colors.get('scrollbar_fg', fg_color))
+                # StyledTextCtrl没有直接的滚动条颜色API，但可以设置边框颜色
+                # self.receive_text.SetEdgeColour(scrollbar_bg)
+            except:
+                pass
+            
+            self.receive_text.Refresh()
             
             # 应用到设置面板
             if hasattr(self.serial_settings, 'apply_theme'):
@@ -818,6 +825,11 @@ class WorkTab(wx.Panel):
                 self.receive_settings.apply_theme(theme_manager)
             if hasattr(self.send_settings, 'apply_theme'):
                 self.send_settings.apply_theme(theme_manager)
+            
+            # 应用链接颜色到"清除发送"和"复位计数"
+            link_color = theme_manager.hex_to_wx_colour(colors.get('link_color', '#4FC3F7'))
+            self.clear_send_label.SetForegroundColour(link_color)
+            self.reset_count_label.SetForegroundColour(link_color)
             
             self.Refresh()
         

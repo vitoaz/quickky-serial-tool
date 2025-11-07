@@ -78,11 +78,11 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         self.clear_link = wx.StaticText(panel, label='清除接收')
         self.clear_link.SetForegroundColour(wx.Colour(0, 102, 204))
         self.clear_link.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        # 设置默认下划线
+        font = self.clear_link.GetFont()
+        font.MakeUnderlined()
+        self.clear_link.SetFont(font)
         self.clear_link.Bind(wx.EVT_LEFT_DOWN, lambda e: self.on_clear_callback() if self.on_clear_callback else None)
-        self.clear_link.Bind(wx.EVT_ENTER_WINDOW, lambda e: self.clear_link.SetFont(
-            self.clear_link.GetFont().Underlined()))
-        self.clear_link.Bind(wx.EVT_LEAVE_WINDOW, lambda e: self.clear_link.SetFont(
-            self.clear_link.GetFont().Underlined(False)))
         sizer.Add(self.clear_link, 0, wx.ALL, 3)
         
         panel.SetSizer(sizer)
@@ -153,5 +153,8 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
     
     def apply_theme(self, theme_manager):
         """应用主题"""
-        pass
+        if theme_manager:
+            colors = theme_manager.get_theme_colors()
+            link_color = theme_manager.hex_to_wx_colour(colors.get('link_color', '#4FC3F7'))
+            self.clear_link.SetForegroundColour(link_color)
 

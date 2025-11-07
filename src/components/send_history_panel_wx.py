@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 历史发送面板 (wxPython版本)
 
@@ -148,4 +147,17 @@ class SendHistoryPanel(wx.Panel):
     
     def apply_theme(self, theme_manager):
         """应用主题"""
-        pass
+        colors = theme_manager.get_theme_colors()
+        if not colors:
+            return
+        
+        try:
+            # 应用到ListCtrl
+            bg_color = theme_manager.hex_to_wx_colour(colors.get('text_bg', '#FFFFFF'))
+            fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
+            
+            self.list_ctrl.SetBackgroundColour(bg_color)
+            self.list_ctrl.SetForegroundColour(fg_color)
+            self.list_ctrl.Refresh()
+        except Exception as e:
+            print(f"应用主题到历史发送面板时出错: {e}")

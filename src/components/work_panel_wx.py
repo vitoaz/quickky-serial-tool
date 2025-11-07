@@ -21,6 +21,12 @@ class WorkPanel(wx.Panel):
         self.theme_manager = theme_manager
         self.on_tab_data_sent = on_tab_data_sent
         
+        # 双栏模式状态
+        self.dual_panel_mode = self.config_manager.get_dual_panel_mode()
+        
+        # 当前激活的栏目
+        self.active_column = None
+        
         # 创建分割窗口
         self.splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3D)
         
@@ -30,6 +36,7 @@ class WorkPanel(wx.Panel):
             self.config_manager,
             self.theme_manager,
             panel_type='main',
+            on_column_activated=self._on_column_activated,
             on_tab_data_sent=on_tab_data_sent
         )
         
@@ -39,8 +46,12 @@ class WorkPanel(wx.Panel):
             self.config_manager,
             self.theme_manager,
             panel_type='secondary',
+            on_column_activated=self._on_column_activated,
             on_tab_data_sent=on_tab_data_sent
         )
+        
+        # 默认激活主栏
+        self.active_column = self.main_column
         
         # 根据配置决定是否显示双栏
         dual_panel_mode = self.config_manager.get_dual_panel_mode()
@@ -56,9 +67,26 @@ class WorkPanel(wx.Panel):
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.splitter, 1, wx.EXPAND)
         self.SetSizer(sizer)
+        
+        # 初始化时更新栏目高亮
+        wx.CallAfter(self._update_column_highlight)
+    
+    def _on_column_activated(self, column):
+        """栏目激活回调"""
+        self.active_column = column
+        self._update_column_highlight()
+    
+    def _update_column_highlight(self):
+        """更新栏目高亮显示"""
+        # 只有在双栏模式下才显示激活边框
+        is_dual = self.splitter.IsSplit()
+        self.main_column.set_active(self.active_column == self.main_column and is_dual)
+        self.secondary_column.set_active(self.active_column == self.secondary_column and is_dual)
     
     def toggle_dual_panel_mode(self, enabled):
         """切换双栏模式"""
+        self.dual_panel_mode = enabled
+        
         if enabled:
             if not self.splitter.IsSplit():
                 self.splitter.SplitVertically(self.main_column, self.secondary_column, 600)
@@ -67,6 +95,8 @@ class WorkPanel(wx.Panel):
             if self.splitter.IsSplit():
                 self.splitter.Unsplit(self.secondary_column)
         
+        # 更新高亮显示
+        self._update_column_highlight()
         self.Layout()
     
     def apply_theme(self):
@@ -76,7 +106,10 @@ class WorkPanel(wx.Panel):
     
     def get_current_work_tab(self):
         """获取当前激活的工作Tab"""
-        # 默认返回主栏的当前Tab
+        # 返回激活栏的当前Tab
+        if self.active_column:
+            return self.active_column.get_current_tab()
+        # 如果没有激活栏，默认返回主栏的当前Tab
         return self.main_column.get_current_tab()
     
     def get_all_work_tabs(self):

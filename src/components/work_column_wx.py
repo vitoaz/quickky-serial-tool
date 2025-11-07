@@ -6,7 +6,6 @@ Email: vitoyuz@foxmail.com
 """
 
 import wx
-import wx.lib.agw.flatnotebook as fnb
 from .work_tab_wx import WorkTab
 
 
@@ -14,14 +13,16 @@ class WorkColumn(wx.Panel):
     """工作栏目 - 管理单栏的多个Tab"""
     
     def __init__(self, parent, config_manager, theme_manager, panel_type='main', 
-                 on_tab_data_sent=None):
+                 on_column_activated=None, on_tab_data_sent=None):
         """初始化工作栏目"""
         super().__init__(parent)
         
         self.config_manager = config_manager
         self.theme_manager = theme_manager
         self.panel_type = panel_type
+        self.on_column_activated = on_column_activated
         self.on_tab_data_sent = on_tab_data_sent
+        self.is_active = False
         
         self._create_widgets()
     
@@ -30,7 +31,12 @@ class WorkColumn(wx.Panel):
         # 创建容器
         sizer = wx.BoxSizer(wx.VERTICAL)
         
-        # 使用 Notebook 创建Tab页
+        # 创建上边框（用于显示激活状态）
+        self.top_border = wx.Panel(self, size=(-1, 3))
+        self.top_border.SetBackgroundColour(self.GetBackgroundColour())  # 默认与背景色相同
+        sizer.Add(self.top_border, 0, wx.EXPAND)
+        
+        # 使用原生Notebook创建Tab页
         self.notebook = wx.Notebook(self)
         self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self._on_tab_changed)
         self.notebook.Bind(wx.EVT_LEFT_DCLICK, self._on_double_click)
@@ -39,6 +45,9 @@ class WorkColumn(wx.Panel):
         
         # 创建第一个Tab
         self._add_new_tab(is_first=True)
+        
+        # 递归绑定所有子控件的点击事件以激活栏目
+        self._bind_activation_event(self)
         
         # 创建加号Tab（占位符，固定在最右侧）
         self.add_tab_panel = wx.Panel(self.notebook)
@@ -208,6 +217,49 @@ class WorkColumn(wx.Panel):
             tab = self.notebook.GetPage(i)
             if hasattr(tab, 'apply_theme'):
                 tab.apply_theme(theme_manager, font_size)
+        
+        # 更新边框高亮
+        self._update_border_highlight()
+    
+    def _bind_activation_event(self, widget):
+        """递归绑定激活事件到所有子控件"""
+        try:
+            # 绑定点击事件
+            widget.Bind(wx.EVT_LEFT_DOWN, self._on_widget_clicked)
+            
+            # 递归处理所有子控件
+            if hasattr(widget, 'GetChildren'):
+                for child in widget.GetChildren():
+                    self._bind_activation_event(child)
+        except:
+            pass
+    
+    def _on_widget_clicked(self, event):
+        """任何子控件被点击 - 激活当前栏目"""
+        event.Skip()  # 让事件继续传播，不影响原有功能
+        if self.on_column_activated:
+            self.on_column_activated(self)
+    
+    def set_active(self, active):
+        """设置激活状态"""
+        self.is_active = active
+        self._update_border_highlight()
+    
+    def _update_border_highlight(self):
+        """更新边框高亮显示"""
+        if self.theme_manager:
+            colors = self.theme_manager.get_theme_colors()
+            bg_color = self.theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            # 使用active_border颜色
+            active_color = self.theme_manager.hex_to_wx_colour(colors.get('active_border', '#0E639C'))
+        else:
+            bg_color = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+            active_color = wx.Colour(14, 99, 156)  # #0E639C
+        
+        # 根据激活状态设置边框颜色
+        border_color = active_color if self.is_active else bg_color
+        self.top_border.SetBackgroundColour(border_color)
+        self.top_border.Refresh()
     
     def cleanup(self):
         """清理资源"""
