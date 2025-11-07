@@ -1,0 +1,105 @@
+"""
+发送设置面板组件 (wxPython版本)
+
+Author: Aaz
+Email: vitoyuz@foxmail.com
+"""
+
+import wx
+
+
+class SendSettingsPanel(wx.StaticBoxSizer):
+    """发送设置面板"""
+    
+    def __init__(self, parent, config_manager, on_change_callback=None, 
+                 on_mode_change_callback=None):
+        """初始化发送设置面板"""
+        box = wx.StaticBox(parent, label='发送设置')
+        super().__init__(box, wx.VERTICAL)
+        
+        self.parent = parent
+        self.config_manager = config_manager
+        self.on_change_callback = on_change_callback
+        self.on_mode_change_callback = on_mode_change_callback
+        self.old_mode = 'TEXT'
+        
+        self._create_widgets()
+    
+    def _create_widgets(self):
+        """创建控件"""
+        panel = wx.Panel(self.GetStaticBox())
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # 模式选择
+        mode_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        mode_sizer.Add(wx.StaticText(panel, label='模式:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.text_radio = wx.RadioButton(panel, label='TEXT', style=wx.RB_GROUP)
+        self.hex_radio = wx.RadioButton(panel, label='HEX')
+        self.text_radio.Bind(wx.EVT_RADIOBUTTON, self._on_mode_changed)
+        self.hex_radio.Bind(wx.EVT_RADIOBUTTON, self._on_mode_changed)
+        mode_sizer.Add(self.text_radio, 0, wx.RIGHT, 5)
+        mode_sizer.Add(self.hex_radio, 0)
+        sizer.Add(mode_sizer, 0, wx.ALL, 3)
+        
+        # 循环发送
+        self.loop_send_check = wx.CheckBox(panel, label='循环发送')
+        self.loop_send_check.Bind(wx.EVT_CHECKBOX, self._on_loop_changed)
+        sizer.Add(self.loop_send_check, 0, wx.ALL, 3)
+        
+        # 周期设置
+        period_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        period_sizer.Add(wx.StaticText(panel, label='周期:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.period_spin = wx.SpinCtrl(panel, value='1000', min=100, max=999999, size=(80, -1))
+        self.period_spin.Bind(wx.EVT_SPINCTRL, self._on_setting_changed)
+        self.period_spin.Enable(False)
+        period_sizer.Add(self.period_spin, 0)
+        period_sizer.Add(wx.StaticText(panel, label='ms'), 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
+        sizer.Add(period_sizer, 0, wx.ALL, 3)
+        
+        panel.SetSizer(sizer)
+        self.Add(panel, 0, wx.ALL | wx.EXPAND, 8)
+    
+    def _on_mode_changed(self, event):
+        """模式变化事件"""
+        new_mode = 'HEX' if self.hex_radio.GetValue() else 'TEXT'
+        if self.on_mode_change_callback and self.old_mode != new_mode:
+            self.on_mode_change_callback(self.old_mode, new_mode)
+        self.old_mode = new_mode
+        self._on_setting_changed(event)
+    
+    def _on_loop_changed(self, event):
+        """循环发送勾选变化"""
+        enabled = self.loop_send_check.GetValue()
+        self.period_spin.Enable(enabled)
+        self._on_setting_changed(event)
+    
+    def _on_setting_changed(self, event):
+        """设置变化事件"""
+        if self.on_change_callback:
+            self.on_change_callback(self.get_settings())
+    
+    def get_settings(self):
+        """获取当前设置"""
+        return {
+            'mode': 'HEX' if self.hex_radio.GetValue() else 'TEXT',
+            'loop_send': self.loop_send_check.GetValue(),
+            'loop_period_ms': self.period_spin.GetValue()
+        }
+    
+    def load_config(self, port, config):
+        """加载配置"""
+        if config['mode'] == 'HEX':
+            self.hex_radio.SetValue(True)
+        else:
+            self.text_radio.SetValue(True)
+        
+        self.old_mode = config['mode']
+        
+        self.loop_send_check.SetValue(config.get('loop_send', False))
+        self.period_spin.SetValue(config.get('loop_period_ms', 1000))
+        self.period_spin.Enable(config.get('loop_send', False))
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        pass
+

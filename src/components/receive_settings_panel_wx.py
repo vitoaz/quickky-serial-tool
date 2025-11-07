@@ -1,0 +1,149 @@
+"""
+接收设置面板组件 (wxPython版本)
+
+Author: Aaz
+Email: vitoyuz@foxmail.com
+"""
+
+import wx
+
+
+class ReceiveSettingsPanel(wx.StaticBoxSizer):
+    """接收设置面板"""
+    
+    def __init__(self, parent, config_manager, on_change_callback=None, 
+                 on_clear_callback=None, on_save_log_callback=None):
+        """初始化接收设置面板"""
+        box = wx.StaticBox(parent, label='接收设置')
+        super().__init__(box, wx.VERTICAL)
+        
+        self.parent = parent
+        self.config_manager = config_manager
+        self.on_change_callback = on_change_callback
+        self.on_clear_callback = on_clear_callback
+        self.on_save_log_callback = on_save_log_callback
+        
+        self._create_widgets()
+    
+    def _create_widgets(self):
+        """创建控件"""
+        panel = wx.Panel(self.GetStaticBox())
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        # 模式
+        mode_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        mode_sizer.Add(wx.StaticText(panel, label='模式:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.text_radio = wx.RadioButton(panel, label='TEXT', style=wx.RB_GROUP)
+        self.hex_radio = wx.RadioButton(panel, label='HEX')
+        self.text_radio.Bind(wx.EVT_RADIOBUTTON, self._on_mode_changed)
+        self.hex_radio.Bind(wx.EVT_RADIOBUTTON, self._on_mode_changed)
+        mode_sizer.Add(self.text_radio, 0, wx.RIGHT, 5)
+        mode_sizer.Add(self.hex_radio, 0)
+        sizer.Add(mode_sizer, 0, wx.ALL, 3)
+        
+        # 编码方式
+        encoding_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        encoding_sizer.Add(wx.StaticText(panel, label='编码:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.encoding_utf8 = wx.RadioButton(panel, label='UTF-8', style=wx.RB_GROUP)
+        self.encoding_ascii = wx.RadioButton(panel, label='ASCII')
+        self.encoding_utf8.Bind(wx.EVT_RADIOBUTTON, self._on_setting_changed)
+        self.encoding_ascii.Bind(wx.EVT_RADIOBUTTON, self._on_setting_changed)
+        encoding_sizer.Add(self.encoding_utf8, 0, wx.RIGHT, 5)
+        encoding_sizer.Add(self.encoding_ascii, 0)
+        sizer.Add(encoding_sizer, 0, wx.ALL, 3)
+        
+        # 日志模式
+        self.log_mode_check = wx.CheckBox(panel, label='日志模式（添加时间戳）')
+        self.log_mode_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
+        sizer.Add(self.log_mode_check, 0, wx.ALL, 3)
+        
+        # 保存日志文件
+        self.save_log_check = wx.CheckBox(panel, label='保存日志文件')
+        self.save_log_check.Bind(wx.EVT_CHECKBOX, self._on_save_log_changed)
+        sizer.Add(self.save_log_check, 0, wx.ALL, 3)
+        
+        # 串口自动重连
+        self.auto_reconnect_check = wx.CheckBox(panel, label='串口自动重连')
+        self.auto_reconnect_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
+        sizer.Add(self.auto_reconnect_check, 0, wx.ALL, 3)
+        
+        # 接收自动滚屏
+        self.auto_scroll_check = wx.CheckBox(panel, label='接收自动滚屏')
+        self.auto_scroll_check.SetValue(True)
+        self.auto_scroll_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
+        sizer.Add(self.auto_scroll_check, 0, wx.ALL, 3)
+        
+        # 清除接收按钮（蓝色超链接样式）
+        self.clear_link = wx.StaticText(panel, label='清除接收')
+        self.clear_link.SetForegroundColour(wx.Colour(0, 102, 204))
+        self.clear_link.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self.clear_link.Bind(wx.EVT_LEFT_DOWN, lambda e: self.on_clear_callback() if self.on_clear_callback else None)
+        self.clear_link.Bind(wx.EVT_ENTER_WINDOW, lambda e: self.clear_link.SetFont(
+            self.clear_link.GetFont().Underlined()))
+        self.clear_link.Bind(wx.EVT_LEAVE_WINDOW, lambda e: self.clear_link.SetFont(
+            self.clear_link.GetFont().Underlined(False)))
+        sizer.Add(self.clear_link, 0, wx.ALL, 3)
+        
+        panel.SetSizer(sizer)
+        self.Add(panel, 0, wx.ALL | wx.EXPAND, 8)
+    
+    def _on_mode_changed(self, event):
+        """模式变化事件"""
+        self._on_setting_changed(event)
+        # 编码选项只在TEXT模式下可用
+        is_text = self.text_radio.GetValue()
+        self.encoding_utf8.Enable(is_text)
+        self.encoding_ascii.Enable(is_text)
+    
+    def _on_setting_changed(self, event):
+        """设置变化事件"""
+        if self.on_change_callback:
+            self.on_change_callback(self.get_settings())
+    
+    def _on_save_log_changed(self, event):
+        """保存日志勾选变化"""
+        if self.save_log_check.GetValue():
+            # 弹出文件选择对话框
+            if self.on_save_log_callback:
+                if not self.on_save_log_callback():
+                    # 用户取消，取消勾选
+                    self.save_log_check.SetValue(False)
+        
+        self._on_setting_changed(event)
+    
+    def get_settings(self):
+        """获取当前设置"""
+        return {
+            'mode': 'HEX' if self.hex_radio.GetValue() else 'TEXT',
+            'encoding': 'UTF-8' if self.encoding_utf8.GetValue() else 'ASCII',
+            'log_mode': self.log_mode_check.GetValue(),
+            'save_log': self.save_log_check.GetValue(),
+            'auto_reconnect': self.auto_reconnect_check.GetValue(),
+            'auto_scroll': self.auto_scroll_check.GetValue()
+        }
+    
+    def load_config(self, port, config):
+        """加载配置"""
+        if config['mode'] == 'HEX':
+            self.hex_radio.SetValue(True)
+            self.encoding_utf8.Enable(False)
+            self.encoding_ascii.Enable(False)
+        else:
+            self.text_radio.SetValue(True)
+            self.encoding_utf8.Enable(True)
+            self.encoding_ascii.Enable(True)
+        
+        if config.get('encoding', 'UTF-8') == 'UTF-8':
+            self.encoding_utf8.SetValue(True)
+        else:
+            self.encoding_ascii.SetValue(True)
+        
+        self.log_mode_check.SetValue(config.get('log_mode', False))
+        self.save_log_check.SetValue(config.get('save_log', False))
+        self.auto_reconnect_check.SetValue(config.get('auto_reconnect', False))
+        self.auto_scroll_check.SetValue(config.get('auto_scroll', True))
+    
+    def apply_theme(self, theme_manager):
+        """应用主题"""
+        pass
+
