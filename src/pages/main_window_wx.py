@@ -148,14 +148,14 @@ class MainWindow(wx.Frame):
             on_tab_data_sent=self._on_work_tab_data_sent
         )
         
-        # 创建命令面板（右侧，固定宽度300）
+        # 创建命令面板（右侧，固定宽度250）
         self.command_panel = CommandPanel(
             self,
             self.config_manager,
             main_window=self
         )
-        self.command_panel.SetMinSize((300, -1))
-        self.command_panel.SetMaxSize((300, -1))
+        self.command_panel.SetMinSize((250, -1))
+        self.command_panel.SetMaxSize((250, -1))
         
         # 创建主垂直sizer
         main_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -332,18 +332,9 @@ class MainWindow(wx.Frame):
             if hasattr(self, 'menubar') and self.menubar:
                 # 设置FlatMenuBar的高度
                 self.menubar.SetSize(-1, 28)  # 设置合适的高度
-                
                 # 直接设置FlatMenuBar和所有菜单的颜色
                 self.menubar.SetBackgroundColour(bg_color)
                 self.menubar.SetForegroundColour(fg_color)
-                
-                # 遍历所有菜单并设置颜色
-                for i in range(self.menubar.GetMenuCount()):
-                    menu = self.menubar.GetMenu(i)
-                    if menu:
-                        menu.SetBackgroundColour(bg_color)
-                        menu.SetForegroundColour(fg_color)
-                
                 self.menubar.Refresh()
         except Exception as e:
             print(f"应用主题到菜单栏时出错: {e}")
