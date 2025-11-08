@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 > nul
 echo ===================================
-echo   QSerial - Build
+echo   QSerial - Build (wxPython版本)
 echo ===================================
 echo.
 
@@ -29,11 +29,17 @@ if errorlevel 1 (
     echo [INFO] 正在安装PyInstaller...
     pip3 install PyInstaller
 )
+python3 -c "import wx" 2>nul
+if errorlevel 1 (
+    echo [ERROR] wxPython未安装，请先安装: pip3 install wxPython
+    pause
+    exit /b 1
+)
 echo.
 
 echo [4/7] 清理旧的构建文件...
 if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
+if exist dist\QSerial.exe del dist\QSerial.exe
 echo.
 
 echo [5/7] 打包应用程序...
@@ -42,11 +48,19 @@ python3 -m PyInstaller --onefile --windowed ^
   --icon icon.ico ^
   --add-data "version.py;." ^
   --add-data "icon.png;." ^
+  --add-data "themes;themes" ^
   --paths src ^
+  --hidden-import wx ^
+  --hidden-import wx.stc ^
+  --hidden-import wx.lib.agw.aui ^
+  --hidden-import wx.lib.agw.flatnotebook ^
+  --hidden-import wx.lib.agw.flatmenu ^
+  --hidden-import wx.lib.agw.artmanager ^
+  --hidden-import wx.lib.buttons ^
   --hidden-import components ^
   --hidden-import pages ^
   --hidden-import utils ^
-  src/main/app.py
+  src/main/app_wx.py
 
 if errorlevel 1 (
     echo [ERROR] 打包失败
@@ -69,6 +83,11 @@ if exist themes (
 ) else (
     echo [WARNING] themes目录不存在
 )
+
+REM 复制config.json示例
+if exist config.json (
+    copy config.json dist\config.json >nul 2>&1
+)
 echo.
 
 echo [7/7] 生成发布包...
@@ -81,8 +100,13 @@ REM 创建压缩包（包含exe和themes目录）
 cd dist
 if exist QSerial_v%VERSION%.zip del QSerial_v%VERSION%.zip
 if exist themes (
-    powershell -Command "Compress-Archive -Path QSerial.exe,themes -DestinationPath QSerial_v%VERSION%.zip -Force"
-    echo [INFO] 压缩包包含: QSerial.exe + themes目录
+    if exist config.json (
+        powershell -Command "Compress-Archive -Path QSerial.exe,themes,config.json -DestinationPath QSerial_v%VERSION%.zip -Force"
+        echo [INFO] 压缩包包含: QSerial.exe + themes目录 + config.json
+    ) else (
+        powershell -Command "Compress-Archive -Path QSerial.exe,themes -DestinationPath QSerial_v%VERSION%.zip -Force"
+        echo [INFO] 压缩包包含: QSerial.exe + themes目录
+    )
 ) else (
     powershell -Command "Compress-Archive -Path QSerial.exe -DestinationPath QSerial_v%VERSION%.zip -Force"
     echo [INFO] 压缩包包含: QSerial.exe（themes已内嵌）
@@ -95,4 +119,5 @@ echo   Build completed!
 echo   EXE: dist\QSerial.exe
 echo   ZIP: dist\QSerial_v%VERSION%.zip
 echo ===================================
+echo.
 echo.
