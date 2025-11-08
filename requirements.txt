@@ -1,3 +1,4 @@
 pyserial>=3.5
+wxPython>=4.2.0
 PyInstaller>=5.0
 

@@ -1,6 +1,6 @@
 # QSerial (Quickky Serial Tool)
 
-一个功能强大的串口调试工具，基于Python + Tkinter开发。
+一个功能强大的串口调试工具，基于Python + wxPython开发。
 
 ## 🚀 核心特性
 
@@ -40,7 +40,7 @@ run.bat
 或者：
 
 ```bash
-python3 src/main/app.py
+python3 src/main/app_wx.py
 ```
 
 ### 构建发布
@@ -54,7 +54,7 @@ build.bat
 ## 技术栈
 
 - **Python 3.x**: 主开发语言
-- **Tkinter**: GUI界面框架
+- **wxPython**: GUI界面框架（高性能）
 - **pyserial**: 串口通信库
 - **PyInstaller**: 打包工具
 
