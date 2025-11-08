@@ -451,10 +451,10 @@ class WorkTab(wx.Panel):
             formatted_data = ' '.join([f'{b:02X}' for b in data]) + ' '
             if settings['log_mode']:
                 # 日志模式：每次收到数据前附加时间戳并换行
-                self._append_receive(formatted_data + '\n', add_timestamp=True)
+                self._append_receive(formatted_data + '\n')
             else:
                 # 普通模式：直接append
-                self._append_receive(formatted_data, add_timestamp=False)
+                self._append_receive(formatted_data)
         else:
             # TEXT模式：解码数据，自动尝试多种编码
             encoding = settings['encoding']
@@ -492,11 +492,11 @@ class WorkTab(wx.Panel):
                 # 按行分割并处理
                 if normalized_data:
                     lines = normalized_data.split('\n')
-                    for i, line in enumerate(lines):
-                        self._append_receive(line + '\n', add_timestamp=True)
+                    for line in lines:
+                        self._append_receive(line + '\n')
             else:
                 # 普通模式：直接append
-                self._append_receive(formatted_data, add_timestamp=False)
+                self._append_receive(formatted_data)
     
     def _on_disconnected(self):
         """串口断开"""
@@ -521,8 +521,13 @@ class WorkTab(wx.Panel):
         else:
             self._send_data()
     
-    def _send_data(self, override_mode=None):
-        """发送数据"""
+    def _send_data(self, override_mode=None, add_to_history=True):
+        """发送数据
+        
+        Args:
+            override_mode: 覆盖的发送模式 (TEXT/HEX)
+            add_to_history: 是否添加到历史记录，默认True
+        """
         data = self.send_text.GetValue()
         if not data:
             return
@@ -579,8 +584,9 @@ class WorkTab(wx.Panel):
             self.tx_count += byte_count
             self.count_label.SetLabel(f'RX: {self.rx_count}  TX: {self.tx_count}')
             
-            # 添加到发送历史
-            self.config_manager.add_send_history(data, send_mode)
+            # 添加到发送历史（仅当add_to_history为True时）
+            if add_to_history:
+                self.config_manager.add_send_history(data, send_mode)
             
             # 通知数据已发送
             if self.on_data_sent:
@@ -623,12 +629,13 @@ class WorkTab(wx.Panel):
         """清除发送区"""
         self.send_text.Clear()
     
-    def _append_receive(self, text, level='normal', add_timestamp=False):
+    def _append_receive(self, text, level='normal'):
         """追加接收数据，直接写入"""
+        settings = self.receive_settings.get_settings()
         display_text = text
         
-        # 添加时间戳（仅在add_timestamp=True时）
-        if add_timestamp:
+        # 日志模式下添加时间戳
+        if settings['log_mode']:
             timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
             if text.endswith('\n'):
                 display_text = timestamp + text
@@ -636,7 +643,6 @@ class WorkTab(wx.Panel):
                 display_text = timestamp + text + '\n'
         
         # 保存到日志文件
-        settings = self.receive_settings.get_settings()
         if settings['save_log'] and self.log_file_path:
             try:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:

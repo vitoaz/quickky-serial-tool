@@ -135,11 +135,8 @@ class SendHistoryPanel(wx.Panel):
         if not self.main_window:
             return
         
-        # 通过工作面板发送
-        if self.main_window.work_panel.send_data(data, mode):
-            # 刷新历史发送面板
-            if hasattr(self.main_window, 'command_panel'):
-                self.main_window.command_panel.refresh_history()
+        # 通过工作面板发送（不会重复添加到历史）
+        self.main_window.work_panel.send_data(data, mode)
     
     def refresh(self):
         """刷新历史列表"""

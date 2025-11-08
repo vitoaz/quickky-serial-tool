@@ -135,8 +135,8 @@ class WorkPanel(wx.Panel):
             # 设置发送文本
             work_tab.send_text.SetValue(data)
             
-            # 按指定模式发送
-            work_tab._send_data(override_mode=mode)
+            # 按指定模式发送，不添加到历史记录（因为是从历史或快捷命令发送）
+            work_tab._send_data(override_mode=mode, add_to_history=False)
             
             return True
         return False
