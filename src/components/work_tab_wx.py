@@ -787,6 +787,11 @@ class WorkTab(wx.Panel):
             self._stop_auto_reconnect()
             if self.serial_manager:
                 self.serial_manager.close()
+            
+            # 重置界面状态
+            self.connect_btn.SetLabel('打开串口')
+            self.send_btn.Enable(False)
+            self.serial_settings.set_enabled(True)
         except Exception as e:
             print(f"清理Tab资源时出错: {e}")
     

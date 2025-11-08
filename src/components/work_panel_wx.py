@@ -93,6 +93,7 @@ class WorkPanel(wx.Panel):
                 self.splitter.SetSashGravity(0.5)
         else:
             if self.splitter.IsSplit():
+                self.secondary_column.cleanup()
                 self.splitter.Unsplit(self.secondary_column)
         
         # 更新高亮显示
