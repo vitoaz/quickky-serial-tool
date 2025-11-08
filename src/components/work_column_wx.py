@@ -7,6 +7,7 @@ Email: vitoyuz@foxmail.com
 
 import wx
 from .work_tab_wx import WorkTab
+from utils.custom_controls_wx import ThemedNotebook
 
 
 class WorkColumn(wx.Panel):
@@ -36,12 +37,18 @@ class WorkColumn(wx.Panel):
         self.top_border.SetBackgroundColour(self.GetBackgroundColour())  # 默认与背景色相同
         sizer.Add(self.top_border, 0, wx.EXPAND)
         
-        # 使用原生Notebook创建Tab页
-        self.notebook = wx.Notebook(self)
-        self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self._on_tab_changed)
-        self.notebook.Bind(wx.EVT_LEFT_DCLICK, self._on_double_click)
-        self.notebook.Bind(wx.EVT_RIGHT_DOWN, self._on_right_click)
+        # 使用ThemedNotebook创建Tab页，支持完整主题
+        self.notebook = ThemedNotebook(self)
+        # FlatNotebook使用不同的事件
+        import wx.lib.agw.flatnotebook as fnb
+        self.notebook.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CHANGED, self._on_tab_changed)
+        self.notebook.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CLOSING, self._on_tab_closing)
+        
+        # 绑定单击事件来处理加号Tab
         self.notebook.Bind(wx.EVT_LEFT_DOWN, self._on_left_click)
+        
+        # 标记正在初始化，防止事件触发时创建额外Tab
+        self._initializing = True
         
         # 创建第一个Tab
         self._add_new_tab(is_first=True)
@@ -59,12 +66,61 @@ class WorkColumn(wx.Panel):
         self.add_tab_panel.SetSizer(add_tab_sizer)
         self.notebook.AddPage(self.add_tab_panel, '   +   ')
         
+        # 初始化完成
+        self._initializing = False
+        
+        # 在Tab创建完成后绑定右键菜单事件到Tab区域
+        # FlatNotebook的Tab区域是_pages属性
+        wx.CallAfter(self._bind_right_click_event)
+        
         sizer.Add(self.notebook, 1, wx.EXPAND)
         self.SetSizer(sizer)
     
+    def _bind_right_click_event(self):
+        """绑定右键点击事件（延迟绑定，确保_pages已创建）"""
+        if hasattr(self.notebook, '_pages') and self.notebook._pages:
+            self.notebook._pages.Bind(wx.EVT_RIGHT_DOWN, self._on_right_down)
+        else:
+            self.notebook.Bind(wx.EVT_RIGHT_DOWN, self._on_right_down)
+    
     def _on_tab_changed(self, event):
         """Tab切换事件"""
-        # 如果切换到加号Tab，不做任何操作（让单击事件处理）
+        # 如果正在初始化，忽略事件
+        if hasattr(self, '_initializing') and self._initializing:
+            event.Skip()
+            return
+        
+        # 获取当前选中的Tab索引
+        current_index = self.notebook.GetSelection()
+        
+        # 如果选中的是加号Tab（最后一个），创建新Tab
+        if current_index == self.notebook.GetPageCount() - 1:
+            # 添加新Tab（内部会自动选中新Tab）
+            self._add_new_tab()
+            return
+        
+        event.Skip()
+    
+    def _on_tab_closing(self, event):
+        """Tab关闭前的事件（用于拦截不允许的关闭操作）"""
+        # 获取要关闭的Tab索引
+        closing_index = event.GetSelection()
+        
+        # 如果是加号Tab（最后一个），阻止关闭
+        if closing_index == self.notebook.GetPageCount() - 1:
+            event.Veto()  # 阻止关闭
+            return
+        
+        # 如果是最后一个真实Tab（只剩1个真实Tab + 1个加号Tab），阻止关闭
+        if self.notebook.GetPageCount() <= 2:
+            event.Veto()  # 阻止关闭
+            return
+        
+        # 清理Tab资源
+        page = self.notebook.GetPage(closing_index)
+        if hasattr(page, 'cleanup'):
+            page.cleanup()
+        
         event.Skip()
     
     def _on_left_click(self, event):
@@ -72,11 +128,11 @@ class WorkColumn(wx.Panel):
         # 获取点击位置
         pos = event.GetPosition()
         
-        # 使用HitTest直接判断点击的Tab
-        tab_index, flags = self.notebook.HitTest(pos)
+        # FlatNotebook使用TabHitTest方法
+        tab_index, where = self.notebook.TabHitTest(pos.x, pos.y)
         
         # 如果点击的是加号Tab（最后一个）
-        if tab_index == self.notebook.GetPageCount() - 1:
+        if tab_index == self.notebook.GetPageCount() - 1 and tab_index >= 0:
             # 添加新Tab（内部会自动选中新Tab）
             self._add_new_tab()
             # 不让事件继续传播，避免切换到加号Tab
@@ -102,8 +158,14 @@ class WorkColumn(wx.Panel):
         )
         
         # 插入到加号Tab之前（加号固定在最后）
-        insert_index = self.notebook.GetPageCount() - (0 if is_first else 1)
-        self.notebook.InsertPage(insert_index, tab, tab_name)
+        # is_first时，加号Tab还没创建，直接AddPage
+        # 非is_first时，插入到加号Tab之前
+        if is_first:
+            self.notebook.AddPage(tab, tab_name)
+            insert_index = self.notebook.GetPageCount() - 1
+        else:
+            insert_index = self.notebook.GetPageCount() - 1  # 加号Tab之前
+            self.notebook.InsertPage(insert_index, tab, tab_name)
         
         # 选中新添加的Tab
         self.notebook.SetSelection(insert_index)
@@ -115,43 +177,51 @@ class WorkColumn(wx.Panel):
         
         return tab
 
-    def _on_double_click(self, event):
-        """双击Tab处理"""
-        # 使用当前选中的Tab
-        tab_index = self.notebook.GetSelection()
+    def _on_right_down(self, event):
+        """右键点击事件"""
+        # 获取鼠标位置
+        pos = event.GetPosition()
         
-        if tab_index >= 0:
-            # 如果双击的是加号Tab（最后一个），忽略双击事件
-            if tab_index == self.notebook.GetPageCount() - 1:
-                # 加号Tab忽略双击，只响应单击
-                pass
+        # FlatNotebook的_pages.HitTest方法
+        try:
+            # 使用_pages的HitTest方法来获取Tab索引
+            if hasattr(self.notebook, '_pages') and self.notebook._pages:
+                hit_result = self.notebook._pages.HitTest(pos)
+                
+                # HitTest返回元组 (where, tab_index)
+                # where: 0=不在Tab上, 1=在Tab上
+                # tab_index: Tab的索引
+                if isinstance(hit_result, tuple) and len(hit_result) >= 2:
+                    where = hit_result[0]
+                    tab_index = hit_result[1]
+                    
+                    # where=1表示点击在Tab上，where=0表示点击在空白区域
+                    if where != 1:
+                        tab_index = -1
+                else:
+                    tab_index = -1
             else:
-                # 如果双击的是普通Tab，关闭它
-                self._close_tab_by_index(tab_index)
+                tab_index = -1
+        except Exception as e:
+            tab_index = -1
+        
+        # 如果点击的是有效的Tab且不是加号Tab（最后一个），显示关闭菜单
+        if tab_index >= 0 and tab_index < self.notebook.GetPageCount() - 1:
+            self._show_tab_menu(tab_index)
+            return
         
         event.Skip()
     
-    def _on_right_click(self, event):
-        """右键菜单"""
-        # 使用当前选中的Tab
-        tab_index = self.notebook.GetSelection()
-        
-        # 如果不是加号Tab（最后一个），显示关闭菜单
-        if tab_index < self.notebook.GetPageCount() - 1:
-            self._show_tab_menu(tab_index, event)
-        
-        event.Skip()
-    
-    def _show_tab_menu(self, tab_index, event):
+    def _show_tab_menu(self, tab_index):
         """显示Tab右键菜单"""
         menu = wx.Menu()
-        close_item = menu.Append(wx.ID_ANY, '关闭Tab')
+        close_item = menu.Append(wx.ID_ANY, '关闭')
         
         def on_close(e):
             self._close_tab_by_index(tab_index)
         
-        menu.Bind(wx.EVT_MENU, on_close, close_item)
-        self.PopupMenu(menu)
+        self.Bind(wx.EVT_MENU, on_close, close_item)
+        self.notebook.PopupMenu(menu)
         menu.Destroy()
     
     def _close_tab_by_index(self, index):
@@ -218,8 +288,17 @@ class WorkColumn(wx.Panel):
         if theme_manager:
             colors = theme_manager.get_theme_colors()
             bg_color = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            fg_color = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
             self.SetBackgroundColour(bg_color)
-            self.notebook.SetBackgroundColour(bg_color)
+            
+            # 应用主题到ThemedNotebook
+            if hasattr(self.notebook, 'apply_theme'):
+                # 计算Tab区域的背景色（稍微深一点）
+                r, g, b = bg_color.Red(), bg_color.Green(), bg_color.Blue()
+                tab_bg_color = wx.Colour(max(r - 10, 0), max(g - 10, 0), max(b - 10, 0))
+                self.notebook.apply_theme(bg_color, fg_color, tab_bg_color, bg_color)
+            else:
+                self.notebook.SetBackgroundColour(bg_color)
         
         font_size = self.config_manager.get_font_size()
         for i in range(self.notebook.GetPageCount() - 1):  # 排除加号Tab

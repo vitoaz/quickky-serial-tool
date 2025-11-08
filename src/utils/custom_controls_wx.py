@@ -187,7 +187,8 @@ class ThemedNotebook(fnb.FlatNotebook):
         # FlatNotebook的样式
         fnb_style = (fnb.FNB_NO_X_BUTTON |  # 不显示Tab上的关闭按钮
                      fnb.FNB_NODRAG |  # 禁用Tab拖动
-                     fnb.FNB_FANCY_TABS)  # 使用漂亮的Tab样式
+                     fnb.FNB_FANCY_TABS |  # 使用漂亮的Tab样式
+                     fnb.FNB_DCLICK_CLOSES_TABS)  # 双击关闭Tab
         
         super().__init__(parent, id, pos, size, agwStyle=fnb_style, name=name)
         
@@ -199,20 +200,18 @@ class ThemedNotebook(fnb.FlatNotebook):
         self._bg_color = bg_color
         self._fg_color = fg_color
         
-        # 设置Tab区域颜色
-        if tab_bg_color is None:
-            # 计算稍微不同的Tab背景色
-            r, g, b = bg_color.Red(), bg_color.Green(), bg_color.Blue()
-            tab_bg_color = wx.Colour(max(r - 10, 0), max(g - 10, 0), max(b - 10, 0))
-        
+        # 激活Tab的颜色（浅色，比背景色亮一点）
         if active_tab_bg_color is None:
-            active_tab_bg_color = bg_color
+            r, g, b = bg_color.Red(), bg_color.Green(), bg_color.Blue()
+            active_tab_bg_color = wx.Colour(min(r + 15, 255), min(g + 15, 255), min(b + 15, 255))
         
-        # 应用FlatNotebook的颜色
-        self.SetTabAreaColour(tab_bg_color)  # Tab区域背景色
-        self.SetActiveTabColour(active_tab_bg_color)  # 激活Tab的背景色
+        # 应用FlatNotebook的所有颜色设置
+        self.SetTabAreaColour(bg_color)  # Tab区域背景色使用主背景色
+        self.SetActiveTabColour(active_tab_bg_color)  # 激活Tab的背景色（浅色）
         self.SetNonActiveTabTextColour(fg_color)  # 非激活Tab的文字颜色
         self.SetActiveTabTextColour(fg_color)  # 激活Tab的文字颜色
+        self.SetGradientColourFrom(active_tab_bg_color)  # 渐变起始色
+        self.SetGradientColourTo(active_tab_bg_color)  # 渐变结束色
         
         # 设置Notebook本身的颜色
         self.SetBackgroundColour(bg_color)
