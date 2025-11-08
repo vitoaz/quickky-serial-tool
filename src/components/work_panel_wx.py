@@ -55,13 +55,15 @@ class WorkPanel(wx.Panel):
         
         # 根据配置决定是否显示双栏
         dual_panel_mode = self.config_manager.get_dual_panel_mode()
-        if dual_panel_mode:
-            self.splitter.SplitVertically(self.main_column, self.secondary_column, 600)
-        else:
-            self.splitter.Initialize(self.main_column)
         
         self.splitter.SetMinimumPaneSize(300)
         self.splitter.SetSashGravity(0.5)  # 平均分配空间
+        
+        if dual_panel_mode:
+            # 使用0或负数让分割器自动居中
+            self.splitter.SplitVertically(self.main_column, self.secondary_column, 0)
+        else:
+            self.splitter.Initialize(self.main_column)
         
         # 创建sizer
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -89,7 +91,8 @@ class WorkPanel(wx.Panel):
         
         if enabled:
             if not self.splitter.IsSplit():
-                self.splitter.SplitVertically(self.main_column, self.secondary_column, 600)
+                # 使用0让分割器自动居中
+                self.splitter.SplitVertically(self.main_column, self.secondary_column, 0)
                 self.splitter.SetSashGravity(0.5)
         else:
             if self.splitter.IsSplit():
