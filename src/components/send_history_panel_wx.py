@@ -26,9 +26,8 @@ class SendHistoryPanel(wx.Panel):
         
         # 创建ListCtrl
         self.list_ctrl = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.list_ctrl.InsertColumn(0, '时间', width=125)
-        self.list_ctrl.InsertColumn(1, '模式', width=40)
-        self.list_ctrl.InsertColumn(2, '数据', width=150)
+        self.list_ctrl.InsertColumn(0, '时间', width=96)
+        self.list_ctrl.InsertColumn(1, '数据', width=139)
         
         # 设置较小的字体
         font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
@@ -44,6 +43,8 @@ class SendHistoryPanel(wx.Panel):
     
     def _load_history(self):
         """加载发送历史"""
+        from datetime import datetime
+        
         self.list_ctrl.DeleteAllItems()
         self.full_data_list = []  # 清空完整数据列表
         history = self.config_manager.get_send_history()
@@ -59,6 +60,16 @@ class SendHistoryPanel(wx.Panel):
                 mode = item.get('mode', 'TEXT')
                 data = item.get('data', '')
             
+            # 转换时间格式为 MM-dd HH:mm:ss
+            if time_str:
+                try:
+                    # 尝试解析原始时间格式
+                    dt = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+                    time_str = dt.strftime('%m-%d %H:%M:%S')
+                except:
+                    # 如果解析失败，保持原样
+                    pass
+            
             # 存储完整数据
             self.full_data_list.append({'mode': mode, 'data': data})
             
@@ -67,9 +78,12 @@ class SendHistoryPanel(wx.Panel):
             if len(display_data) > 50:
                 display_data = display_data[:50] + '...'
             
+            # 在数据前面添加模式标注
+            mode_prefix = '[H] ' if mode == 'HEX' else '[T] '
+            display_data = mode_prefix + display_data
+            
             index = self.list_ctrl.InsertItem(self.list_ctrl.GetItemCount(), time_str)
-            self.list_ctrl.SetItem(index, 1, mode)
-            self.list_ctrl.SetItem(index, 2, display_data)
+            self.list_ctrl.SetItem(index, 1, display_data)
     
     def _show_menu(self, event):
         """显示右键菜单"""

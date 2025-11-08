@@ -88,8 +88,7 @@ class QuickCommandsPanel(wx.Panel):
         # 创建ListCtrl
         list_ctrl = wx.ListCtrl(tab_panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         list_ctrl.InsertColumn(0, '名称', width=80)
-        list_ctrl.InsertColumn(1, '模式', width=60)
-        list_ctrl.InsertColumn(2, '内容', width=200)
+        list_ctrl.InsertColumn(1, '数据', width=155)
         
         # 设置较小的字体
         font = wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
@@ -107,9 +106,12 @@ class QuickCommandsPanel(wx.Panel):
             # 转义换行符用于显示
             display_data = data.replace('\n', '\\n').replace('\r', '\\r')
             
+            # 在数据前面添加模式标注
+            mode_prefix = '[H] ' if mode == 'HEX' else '[T] '
+            display_data = mode_prefix + display_data
+            
             index = list_ctrl.InsertItem(list_ctrl.GetItemCount(), name)
-            list_ctrl.SetItem(index, 1, mode)
-            list_ctrl.SetItem(index, 2, display_data)
+            list_ctrl.SetItem(index, 1, display_data)
         
         sizer.Add(list_ctrl, 1, wx.EXPAND | wx.ALL, 5)
         tab_panel.SetSizer(sizer)
