@@ -48,11 +48,6 @@ class WorkTab(wx.Panel):
         self.loop_send_timer = None
         self.theme_manager = None
         
-        # 接收区显示缓冲
-        self.display_buffer = []
-        self.flush_timer = None
-        self.flush_interval_ms = 100
-        
         # 日志级别样式定义
         self.level_styles = {
             'normal': 0,   # 使用默认样式
@@ -452,27 +447,56 @@ class WorkTab(wx.Panel):
         
         # 格式化数据
         if settings['mode'] == 'HEX':
+            # HEX模式
             formatted_data = ' '.join([f'{b:02X}' for b in data]) + ' '
             if settings['log_mode']:
-                formatted_data += '\n'
-            self._append_receive(formatted_data)
+                # 日志模式：每次收到数据前附加时间戳并换行
+                self._append_receive(formatted_data + '\n', add_timestamp=True)
+            else:
+                # 普通模式：直接append
+                self._append_receive(formatted_data, add_timestamp=False)
         else:
-            try:
-                formatted_data = data.decode(settings['encoding'].lower().replace('-', ''))
-            except:
+            # TEXT模式：解码数据，自动尝试多种编码
+            encoding = settings['encoding']
+            encoding_list = [encoding]
+            
+            # 添加其他编码选项
+            if encoding == 'ASCII':
+                # ASCII模式：失败后尝试GB2312、GBK
+                encoding_list.extend(['GB2312', 'GBK'])
+            
+            # 尝试每种编码解码
+            formatted_data = None
+            for enc in encoding_list:
+                enc_normalized = enc.lower().replace('-', '')
+                try:
+                    formatted_data = data.decode(enc_normalized)
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            
+            # 如果所有编码都失败，使用原始字节表示
+            if formatted_data is None:
                 formatted_data = str(data)
             
-            if settings['log_mode'] and ('\n' in formatted_data or '\r' in formatted_data):
-                lines = formatted_data.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-                for i, line in enumerate(lines):
-                    if i < len(lines) - 1:
-                        self._append_receive(line + '\n', flush=False)
-                    elif line:
-                        self._append_receive(line, flush=True)
-                if lines and not lines[-1]:
-                    self._flush_display(force=True)
+            # TEXT模式
+            if settings['log_mode']:
+                # 日志模式：分行处理，每行前附加时间戳
+                # 统一换行符：\r\n -> \n, \r -> \n
+                normalized_data = formatted_data.replace('\r\n', '\n').replace('\r', '\n')
+                
+                # 如果数据不以\n结尾，添加一个\n
+                if normalized_data and not normalized_data.endswith('\n'):
+                    normalized_data += '\n'
+                
+                # 按行分割并处理
+                if normalized_data:
+                    lines = normalized_data.split('\n')
+                    for i, line in enumerate(lines):
+                        self._append_receive(line + '\n', add_timestamp=True)
             else:
-                self._append_receive(formatted_data)
+                # 普通模式：直接append
+                self._append_receive(formatted_data, add_timestamp=False)
     
     def _on_disconnected(self):
         """串口断开"""
@@ -516,17 +540,41 @@ class WorkTab(wx.Panel):
         
         self.send_error_label.SetLabel('')
         
-        # 计算发送的字节数
+        # 计算发送的字节数和确定实际使用的编码
         byte_count = 0
+        actual_encoding = None
         if send_mode == 'HEX':
             hex_str = data.replace(' ', '').replace('\n', '').replace('\r', '')
             byte_count = len(hex_str) // 2
         else:
-            encoding = self.receive_settings.get_settings()['encoding'].lower().replace('-', '')
-            byte_count = len(data.encode(encoding))
+            # TEXT模式：自动尝试多种编码
+            # 优先使用用户选择的编码，如果失败则尝试其他编码
+            encoding = self.receive_settings.get_settings()['encoding']
+            encoding_list = [encoding]
+            
+            # 添加其他编码选项
+            if encoding == 'ASCII':
+                # ASCII模式：失败后尝试GB2312、GBK
+                encoding_list.extend(['GB2312', 'GBK'])
+            
+            # 尝试每种编码
+            for enc in encoding_list:
+                enc_normalized = enc.lower().replace('-', '')
+                try:
+                    byte_count = len(data.encode(enc_normalized))
+                    actual_encoding = enc
+                    break
+                except (UnicodeEncodeError, LookupError):
+                    continue
+            
+            # 如果所有编码都失败
+            if actual_encoding is None:
+                self._append_receive('[错误] 无法使用任何编码发送数据\n', 'error')
+                return
         
-        if self.serial_manager.send(data, send_mode, 
-                                    self.receive_settings.get_settings()['encoding']):
+        # 发送数据，使用实际确定的编码（HEX模式时actual_encoding为None，使用默认编码）
+        send_encoding = actual_encoding if actual_encoding else self.receive_settings.get_settings()['encoding']
+        if self.serial_manager.send(data, send_mode, send_encoding):
             # 更新TX计数
             self.tx_count += byte_count
             self.count_label.SetLabel(f'RX: {self.rx_count}  TX: {self.tx_count}')
@@ -575,23 +623,20 @@ class WorkTab(wx.Panel):
         """清除发送区"""
         self.send_text.Clear()
     
-    def _append_receive(self, text, level='normal', flush=True):
-        """追加接收数据"""
-        settings = self.receive_settings.get_settings()
-        
-        # 添加时间戳
+    def _append_receive(self, text, level='normal', add_timestamp=False):
+        """追加接收数据，直接写入"""
         display_text = text
-        if settings['log_mode']:
-            timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
-            display_text = timestamp + text
         
-        # 添加到缓冲区
-        self.display_buffer.append({
-            'text': display_text,
-            'level': level
-        })
+        # 添加时间戳（仅在add_timestamp=True时）
+        if add_timestamp:
+            timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
+            if text.endswith('\n'):
+                display_text = timestamp + text
+            else:
+                display_text = timestamp + text + '\n'
         
         # 保存到日志文件
+        settings = self.receive_settings.get_settings()
         if settings['save_log'] and self.log_file_path:
             try:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:
@@ -599,55 +644,29 @@ class WorkTab(wx.Panel):
             except Exception as e:
                 print(f"写入日志文件失败: {e}")
         
-        # 刷新显示
-        if flush:
-            self._schedule_flush()
-    
-    def _schedule_flush(self):
-        """安排延迟刷新"""
-        if self.flush_timer is None:
-            self.flush_timer = wx.CallLater(self.flush_interval_ms, self._perform_scheduled_flush)
-    
-    def _perform_scheduled_flush(self):
-        """执行延迟刷新"""
-        self.flush_timer = None
-        self._flush_display_internal()
-    
-    def _flush_display(self, force=False):
-        """强制刷新显示"""
-        if force and self.flush_timer:
-            self.flush_timer.Stop()
-            self.flush_timer = None
-        self._flush_display_internal()
-    
-    def _flush_display_internal(self):
-        """刷新显示缓冲区内容"""
-        if not self.display_buffer:
-            return
-        
-        settings = self.receive_settings.get_settings()
-        
+        # 直接写入接收区
         self.receive_text.SetReadOnly(False)
         
-        # 批量插入文本，应用样式
-        for item in self.display_buffer:
-            text = item['text']
-            level = item.get('level', 'normal')
-            style_id = self.level_styles.get(level, 0)
-            
-            # 获取当前文本末尾位置
-            pos = self.receive_text.GetLength()
-            
-            # 插入文本
-            self.receive_text.AppendText(text)
-            
-            # 应用样式到新插入的文本
-            end_pos = self.receive_text.GetLength()
-            self.receive_text.StartStyling(pos)
-            self.receive_text.SetStyling(end_pos - pos, style_id)
+        # 如果是系统消息（info/error/warning/success），检查上一次最后一个字符是否为换行符
+        if level != 'normal':
+            text_length = self.receive_text.GetLength()
+            if text_length > 0:
+                last_char = self.receive_text.GetCharAt(text_length - 1)
+                # 如果最后一个字符不是换行符（\n的ASCII码是10），先添加换行
+                if last_char != 10:
+                    self.receive_text.AppendText('\n')
         
-        # 清空缓冲区
-        self.display_buffer.clear()
+        # 获取当前文本末尾位置
+        pos = self.receive_text.GetLength()
+        
+        # 插入文本
+        self.receive_text.AppendText(display_text)
+        
+        # 应用样式到新插入的文本
+        style_id = self.level_styles.get(level, 0)
+        end_pos = self.receive_text.GetLength()
+        self.receive_text.StartStyling(pos)
+        self.receive_text.SetStyling(end_pos - pos, style_id)
         
         # 检查buffer大小限制
         global_settings = self.config_manager.get_global_settings()
