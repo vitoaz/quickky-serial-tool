@@ -283,8 +283,6 @@ class WorkTab(wx.Panel):
         """设置回调函数"""
         self.serial_manager.set_receive_callback(self._on_data_received)
         self.serial_manager.set_disconnect_callback(self._on_disconnected)
-        
-        # 只有第一个Tab才默认选择串口
         if self.is_first_tab:
             # 延迟执行，确保Tab已经完全加载到Notebook中
             wx.CallAfter(self._init_default_port)

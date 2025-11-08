@@ -114,15 +114,16 @@ class SendSettingsPanel(wx.StaticBoxSizer):
             return
         
         try:
-            # SpinCtrl是原生控件，只支持前景色（文字颜色）
-            fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
-            self.period_spin.SetForegroundColour(fg_color)
-            self.period_spin.Refresh()
-            
             # 应用到Panel和Label
             panel_bg = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
             panel_fg = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
             
+            # SpinCtrl
+            fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
+            self.period_spin.SetForegroundColour(fg_color)
+            self.period_spin.SetBackgroundColour(panel_bg)
+            self.period_spin.Refresh()
+
             # 设置StaticBox（边框标题）的颜色
             static_box = self.GetStaticBox()
             if static_box:

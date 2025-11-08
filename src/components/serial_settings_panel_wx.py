@@ -7,6 +7,7 @@ Email: vitoyuz@foxmail.com
 
 import wx
 from utils.serial_manager import SerialManager
+from utils.custom_controls_wx import ThemedComboBox
 
 
 class SerialSettingsPanel(wx.StaticBoxSizer):
@@ -39,42 +40,42 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
         
         # 串口号
         grid.Add(wx.StaticText(self.panel, label='串口号:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.port_combo = wx.ComboBox(self.panel, style=wx.CB_READONLY, size=(150, -1))
+        self.port_combo = ThemedComboBox(self.panel, choices=[''], style=wx.CB_READONLY, size=(150, -1))
         self.port_combo.Bind(wx.EVT_COMBOBOX, self._on_port_changed)
         self.port_combo.Bind(wx.EVT_COMBOBOX_DROPDOWN, self._refresh_ports)
         grid.Add(self.port_combo, 0, wx.EXPAND)
         
         # 波特率
         grid.Add(wx.StaticText(self.panel, label='波特率:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.baudrate_combo = wx.ComboBox(self.panel, value='115200', choices=self.BAUDRATES, size=(150, -1))
+        self.baudrate_combo = ThemedComboBox(self.panel, value='115200', choices=self.BAUDRATES, size=(150, -1))
         self.baudrate_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         self.baudrate_combo.Bind(wx.EVT_TEXT, self._on_setting_changed)
         grid.Add(self.baudrate_combo, 0, wx.EXPAND)
         
         # 校验位
         grid.Add(wx.StaticText(self.panel, label='校验位:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.parity_combo = wx.ComboBox(self.panel, value='None', choices=self.PARITIES, 
+        self.parity_combo = ThemedComboBox(self.panel, value='None', choices=self.PARITIES, 
                                        style=wx.CB_READONLY, size=(150, -1))
         self.parity_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.parity_combo, 0, wx.EXPAND)
         
         # 数据位
         grid.Add(wx.StaticText(self.panel, label='数据位:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.bytesize_combo = wx.ComboBox(self.panel, value='8', choices=self.BYTESIZES, 
+        self.bytesize_combo = ThemedComboBox(self.panel, value='8', choices=self.BYTESIZES, 
                                          style=wx.CB_READONLY, size=(150, -1))
         self.bytesize_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.bytesize_combo, 0, wx.EXPAND)
         
         # 停止位
         grid.Add(wx.StaticText(self.panel, label='停止位:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.stopbits_combo = wx.ComboBox(self.panel, value='1', choices=self.STOPBITS, 
+        self.stopbits_combo = ThemedComboBox(self.panel, value='1', choices=self.STOPBITS, 
                                          style=wx.CB_READONLY, size=(150, -1))
         self.stopbits_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.stopbits_combo, 0, wx.EXPAND)
         
         # 流控
         grid.Add(wx.StaticText(self.panel, label='流控:'), 0, wx.ALIGN_CENTER_VERTICAL)
-        self.flow_control_combo = wx.ComboBox(self.panel, value='None', choices=self.FLOW_CONTROLS, 
+        self.flow_control_combo = ThemedComboBox(self.panel, value='None', choices=self.FLOW_CONTROLS, 
                                              style=wx.CB_READONLY, size=(150, -1))
         self.flow_control_combo.Bind(wx.EVT_COMBOBOX, self._on_setting_changed)
         grid.Add(self.flow_control_combo, 0, wx.EXPAND)
@@ -159,12 +160,8 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
     
     def set_enabled(self, enabled):
         """设置控件启用/禁用状态"""
-        self.port_combo.Enable(enabled)
-        self.baudrate_combo.Enable(enabled)
-        self.parity_combo.Enable(enabled)
-        self.bytesize_combo.Enable(enabled)
-        self.stopbits_combo.Enable(enabled)
-        self.flow_control_combo.Enable(enabled)
+        # 直接禁用整个panel，避免单个控件样式被系统修改
+        self.panel.Enable(enabled)
     
     def get_available_ports(self):
         """获取可用串口列表"""
@@ -185,6 +182,14 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
             static_box = self.GetStaticBox()
             if static_box:
                 static_box.SetForegroundColour(panel_fg)
+            
+            # 应用主题到ThemedComboBox
+            text_bg = theme_manager.hex_to_wx_colour(colors.get('text_bg', '#FFFFFF'))
+            text_fg = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
+            for combo in [self.port_combo, self.baudrate_combo, self.parity_combo, 
+                         self.bytesize_combo, self.stopbits_combo, self.flow_control_combo]:
+                if hasattr(combo, 'apply_theme'):
+                    combo.apply_theme(text_bg, text_fg)
             
             # 递归应用到所有StaticText、RadioButton、CheckBox和Panel
             def apply_to_labels(widget):
