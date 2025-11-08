@@ -116,7 +116,6 @@ class WorkTab(wx.Panel):
             self.left_panel,
             self.config_manager,
             on_change_callback=self._on_receive_config_changed,
-            on_clear_callback=self._clear_receive,
             on_save_log_callback=self._on_save_log_checked
         )
         left_sizer.Add(self.receive_settings, 0, wx.EXPAND | wx.ALL, 2)
@@ -147,6 +146,24 @@ class WorkTab(wx.Panel):
         self.receive_text.SetReadOnly(True)
         
         receive_sizer.Add(self.receive_text, 1, wx.EXPAND | wx.ALL, 5)
+        
+        # 清除接收按钮（使用StaticText模拟超链接）
+        receive_btn_panel = wx.Panel(self.right_panel)
+        receive_btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        self.clear_receive_label = wx.StaticText(receive_btn_panel, label='清除接收')
+        self.clear_receive_label.SetForegroundColour(wx.Colour(0, 102, 204))
+        self.clear_receive_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        # 设置默认下划线
+        font = self.clear_receive_label.GetFont()
+        font.MakeUnderlined()
+        self.clear_receive_label.SetFont(font)
+        self.clear_receive_label.Bind(wx.EVT_LEFT_DOWN, self._clear_receive)
+        receive_btn_sizer.Add(self.clear_receive_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
+        
+        receive_btn_panel.SetSizer(receive_btn_sizer)
+        receive_sizer.Add(receive_btn_panel, 0, wx.EXPAND | wx.ALL, 5)
+        
         right_sizer.Add(receive_sizer, 1, wx.EXPAND | wx.BOTTOM, 5)
         
         # 发送区
@@ -200,7 +217,14 @@ class WorkTab(wx.Panel):
         self.stats_panel = wx.Panel(self.right_panel)
         stats_sizer = wx.BoxSizer(wx.HORIZONTAL)
         
-        # 复位计数（使用StaticText模拟超链接，放在最右侧）
+        # RX/TX计数（合并到一个label，左对齐）
+        self.count_label = wx.StaticText(self.stats_panel, label='RX: 0  TX: 0')
+        stats_sizer.Add(self.count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 5)
+        
+        # 弹性空间，确保复位计数固定在右侧
+        stats_sizer.AddStretchSpacer(1)
+        
+        # 复位计数（使用StaticText模拟超链接，固定在最右侧）
         self.reset_count_label = wx.StaticText(self.stats_panel, label='复位计数')
         self.reset_count_label.SetForegroundColour(wx.Colour(0, 102, 204))
         self.reset_count_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
@@ -210,13 +234,6 @@ class WorkTab(wx.Panel):
         self.reset_count_label.SetFont(font)
         self.reset_count_label.Bind(wx.EVT_LEFT_DOWN, self._reset_count)
         stats_sizer.Add(self.reset_count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
-        
-        stats_sizer.AddStretchSpacer(1)
-        
-        # RX/TX计数（合并到一个label，设置最小宽度，右对齐）
-        self.count_label = wx.StaticText(self.stats_panel, label='RX: 0  TX: 0', style=wx.ALIGN_RIGHT)
-        self.count_label.SetMinSize((150, -1))  # 设置最小宽度150像素
-        stats_sizer.Add(self.count_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         
         self.stats_panel.SetSizer(stats_sizer)
         right_sizer.Add(self.stats_panel, 0, wx.EXPAND | wx.TOP, 2)
@@ -617,7 +634,7 @@ class WorkTab(wx.Panel):
             self.loop_send_timer.cancel()
             self.loop_send_timer = None
     
-    def _clear_receive(self):
+    def _clear_receive(self, event=None):
         """清除接收区"""
         self.receive_text.SetReadOnly(False)
         self.receive_text.ClearAll()
@@ -853,8 +870,9 @@ class WorkTab(wx.Panel):
             if hasattr(self.send_settings, 'apply_theme'):
                 self.send_settings.apply_theme(theme_manager)
             
-            # 应用链接颜色到"清除发送"和"复位计数"
+            # 应用链接颜色到"清除接收"、"清除发送"和"复位计数"
             link_color = theme_manager.hex_to_wx_colour(colors.get('link_color', '#4FC3F7'))
+            self.clear_receive_label.SetForegroundColour(link_color)
             self.clear_send_label.SetForegroundColour(link_color)
             self.reset_count_label.SetForegroundColour(link_color)
             
@@ -898,10 +916,7 @@ class WorkTab(wx.Panel):
                         widget.SetBackgroundColour(panel_bg)
                     elif isinstance(widget, wx.StaticText):
                         # 跳过链接颜色的label
-                        skip_links = [self.clear_send_label, self.reset_count_label]
-                        # 同时跳过receive_settings中的clear_link
-                        if hasattr(self, 'receive_settings') and hasattr(self.receive_settings, 'clear_link'):
-                            skip_links.append(self.receive_settings.clear_link)
+                        skip_links = [self.clear_receive_label, self.clear_send_label, self.reset_count_label]
                         
                         if widget not in skip_links:
                             widget.SetForegroundColour(panel_fg)

@@ -7,8 +7,9 @@ Email: vitoyuz@foxmail.com
 
 import wx
 import wx.lib.agw.aui as aui
+import wx.lib.agw.flatnotebook as fnb
 from utils.hex_utils import HexUtils
-from utils.custom_controls_wx import ThemedButton
+from utils.custom_controls_wx import ThemedButton, ThemedNotebook
 
 
 class QuickCommandsPanel(wx.Panel):
@@ -27,13 +28,40 @@ class QuickCommandsPanel(wx.Panel):
         """创建控件"""
         sizer = wx.BoxSizer(wx.VERTICAL)
         
-        # 使用Notebook创建分组Tab
-        self.group_notebook = wx.Notebook(self)
-        # 绑定右键事件到Notebook（用于Tab标签上的右键菜单）
-        self.group_notebook.Bind(wx.EVT_RIGHT_DOWN, self._show_group_menu)
+        # 使用ThemedNotebook创建分组Tab，允许拖动调整顺序
+        self.group_notebook = ThemedNotebook(self, allow_drag=True)
+        # 延迟绑定右键事件到Tab区域（用于Tab标签上的右键菜单）
+        wx.CallAfter(self._bind_right_click_event)
+        
+        # 绑定Tab拖动完成事件，保存新的顺序
+        self.group_notebook.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_DROPPED, self._on_tab_dropped)
         
         sizer.Add(self.group_notebook, 1, wx.EXPAND)
         self.SetSizer(sizer)
+    
+    def _bind_right_click_event(self):
+        """绑定右键点击事件（延迟绑定，确保_pages已创建）"""
+        if hasattr(self.group_notebook, '_pages') and self.group_notebook._pages:
+            self.group_notebook._pages.Bind(wx.EVT_RIGHT_DOWN, self._show_group_menu)
+        else:
+            self.group_notebook.Bind(wx.EVT_RIGHT_DOWN, self._show_group_menu)
+    
+    def _on_tab_dropped(self, event):
+        """Tab拖动完成后，保存新的分组顺序"""
+        # 获取当前所有Tab的顺序，重新构建分组列表
+        new_groups = []
+        for i in range(self.group_notebook.GetPageCount()):
+            tab_name = self.group_notebook.GetPageText(i)
+            # 从原分组列表中找到对应的分组数据
+            groups = self.config_manager.get_quick_command_groups()
+            for group in groups:
+                if group['name'] == tab_name:
+                    new_groups.append(group)
+                    break
+        
+        # 保存新的分组顺序
+        if new_groups:
+            self.config_manager.set_quick_command_groups(new_groups)
     
     def _load_groups(self):
         """加载分组"""
@@ -99,11 +127,33 @@ class QuickCommandsPanel(wx.Panel):
     
     def _show_group_menu(self, event):
         """显示分组右键菜单"""
+        # 获取鼠标位置
+        pos = event.GetPosition()
+        
+        # 获取点击的Tab索引
+        tab_index = -1
+        try:
+            if hasattr(self.group_notebook, '_pages') and self.group_notebook._pages:
+                hit_result = self.group_notebook._pages.HitTest(pos)
+                
+                # HitTest返回元组 (where, tab_index)
+                # where: 0=不在Tab上, 1=在Tab上
+                if isinstance(hit_result, tuple) and len(hit_result) >= 2:
+                    where = hit_result[0]
+                    tab_index = hit_result[1]
+                    
+                    # 只在Tab上才显示菜单
+                    if where != 1:
+                        tab_index = -1
+        except Exception as e:
+            tab_index = -1
+        
+        # 如果没有点击在Tab上，使用当前选中的Tab
+        if tab_index < 0:
+            tab_index = self.group_notebook.GetSelection()
+        
         menu = wx.Menu()
         add_group_item = menu.Append(wx.ID_ANY, '新建分组')
-        
-        # 使用当前选中的Tab作为操作对象
-        tab_index = self.group_notebook.GetSelection()
         
         if tab_index >= 0:
             menu.AppendSeparator()
@@ -167,6 +217,27 @@ class QuickCommandsPanel(wx.Panel):
         list_ctrl.PopupMenu(menu)
         menu.Destroy()
     
+    def _apply_theme_to_tab(self, tab_index):
+        """对指定Tab应用主题"""
+        if not self.main_window or not hasattr(self.main_window, 'theme_manager'):
+            return
+        
+        page = self.group_notebook.GetPage(tab_index)
+        theme_manager = self.main_window.theme_manager
+        colors = theme_manager.get_theme_colors()
+        if not colors:
+            return
+        
+        bg_color = theme_manager.hex_to_wx_colour(colors.get('text_bg', '#FFFFFF'))
+        fg_color = theme_manager.hex_to_wx_colour(colors.get('text_fg', '#000000'))
+        
+        # 查找ListCtrl并应用主题
+        for child in page.GetChildren():
+            if isinstance(child, wx.ListCtrl):
+                child.SetBackgroundColour(bg_color)
+                child.SetForegroundColour(fg_color)
+                child.Refresh()
+    
     def _add_group(self, event):
         """添加分组"""
         # 使用主窗口作为父控件，确保对话框相对主窗口居中
@@ -178,9 +249,15 @@ class QuickCommandsPanel(wx.Panel):
                 groups = self.config_manager.get_quick_command_groups()
                 groups.append({'name': name, 'commands': []})
                 self.config_manager.set_quick_command_groups(groups)
-                self._load_groups()
+                # 直接创建新Tab，而不是刷新所有
+                self._create_group_tab({'name': name, 'commands': []})
+                
+                # 对新Tab应用主题
+                new_tab_index = self.group_notebook.GetPageCount() - 1
+                self._apply_theme_to_tab(new_tab_index)
+                
                 # 切换到新分组
-                self.group_notebook.SetSelection(len(groups) - 1)
+                self.group_notebook.SetSelection(new_tab_index)
         dialog.Destroy()
     
     def _rename_group(self, tab_index):
@@ -196,8 +273,8 @@ class QuickCommandsPanel(wx.Panel):
             if name and name != old_name:
                 groups[tab_index]['name'] = name
                 self.config_manager.set_quick_command_groups(groups)
-                self._load_groups()
-                self.group_notebook.SetSelection(tab_index)
+                # 只更新Tab标题，而不是刷新所有
+                self.group_notebook.SetPageText(tab_index, name)
         dialog.Destroy()
     
     def _delete_group(self, tab_index):
@@ -212,7 +289,8 @@ class QuickCommandsPanel(wx.Panel):
         if result == wx.YES:
             groups.pop(tab_index)
             self.config_manager.set_quick_command_groups(groups)
-            self._load_groups()
+            # 直接删除Tab，而不是刷新所有
+            self.group_notebook.DeletePage(tab_index)
     
     def _add_command(self, list_ctrl):
         """添加指令"""
@@ -417,10 +495,9 @@ class QuickCommandsPanel(wx.Panel):
                         child.SetForegroundColour(fg_color)
                         child.Refresh()
             
-            # 应用到Notebook
-            self.group_notebook.SetBackgroundColour(bg_color)
-            self.group_notebook.SetForegroundColour(fg_color)
-            self.group_notebook.Refresh()
+            # 应用主题到ThemedNotebook
+            if hasattr(self.group_notebook, 'apply_theme'):
+                self.group_notebook.apply_theme(bg_color, fg_color)
             
         except Exception as e:
             print(f"应用主题到快捷命令面板时出错: {e}")
@@ -470,15 +547,14 @@ class CommandDialog(wx.Dialog):
         sizer.Add(self.error_label, 0, wx.LEFT | wx.RIGHT, 10)
         
         # 按钮
-        btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = ThemedButton(self, wx.ID_OK, label='确定')
-        cancel_btn = ThemedButton(self, wx.ID_CANCEL, label='取消')
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(self, wx.ID_OK, label='确定')
+        cancel_btn = wx.Button(self, wx.ID_CANCEL, label='取消')
         ok_btn.Bind(wx.EVT_BUTTON, self._on_ok)
         cancel_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CANCEL))
-        btn_sizer.AddButton(ok_btn)
-        btn_sizer.AddButton(cancel_btn)
-        btn_sizer.Realize()
-        sizer.Add(btn_sizer, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+        btn_sizer.Add(ok_btn, 0, wx.RIGHT, 5)
+        btn_sizer.Add(cancel_btn, 0)
+        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 10)
         
         self.SetSizer(sizer)
         self.Fit()
@@ -541,15 +617,14 @@ class InputDialog(wx.Dialog):
         sizer.Add(self.error_label, 0, wx.LEFT | wx.RIGHT, 10)
         
         # 按钮
-        btn_sizer = wx.StdDialogButtonSizer()
-        ok_btn = ThemedButton(self, wx.ID_OK, label='确定')
-        cancel_btn = ThemedButton(self, wx.ID_CANCEL, label='取消')
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        ok_btn = wx.Button(self, wx.ID_OK, label='确定')
+        cancel_btn = wx.Button(self, wx.ID_CANCEL, label='取消')
         ok_btn.Bind(wx.EVT_BUTTON, self._on_ok)
         cancel_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CANCEL))
-        btn_sizer.AddButton(ok_btn)
-        btn_sizer.AddButton(cancel_btn)
-        btn_sizer.Realize()
-        sizer.Add(btn_sizer, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+        btn_sizer.Add(ok_btn, 0, wx.RIGHT, 5)
+        btn_sizer.Add(cancel_btn, 0)
+        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 10)
         
         self.SetSizer(sizer)
         self.Fit()

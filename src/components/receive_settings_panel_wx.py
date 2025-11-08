@@ -12,7 +12,7 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
     """接收设置面板"""
     
     def __init__(self, parent, config_manager, on_change_callback=None, 
-                 on_clear_callback=None, on_save_log_callback=None):
+                 on_save_log_callback=None):
         """初始化接收设置面板"""
         box = wx.StaticBox(parent, label='接收设置')
         super().__init__(box, wx.VERTICAL)
@@ -20,7 +20,6 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         self.parent = parent
         self.config_manager = config_manager
         self.on_change_callback = on_change_callback
-        self.on_clear_callback = on_clear_callback
         self.on_save_log_callback = on_save_log_callback
         self.current_port = None  # 当前串口
         
@@ -73,17 +72,6 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
         self.auto_scroll_check.SetValue(True)
         self.auto_scroll_check.Bind(wx.EVT_CHECKBOX, self._on_setting_changed)
         sizer.Add(self.auto_scroll_check, 0, wx.ALL, 3)
-        
-        # 清除接收按钮（蓝色超链接样式）
-        self.clear_link = wx.StaticText(self.panel, label='清除接收')
-        # 初始颜色将由apply_theme设置
-        self.clear_link.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-        # 设置默认下划线
-        font = self.clear_link.GetFont()
-        font.MakeUnderlined()
-        self.clear_link.SetFont(font)
-        self.clear_link.Bind(wx.EVT_LEFT_DOWN, lambda e: self.on_clear_callback() if self.on_clear_callback else None)
-        sizer.Add(self.clear_link, 0, wx.ALL, 3)
         
         self.panel.SetSizer(sizer)
         self.Add(self.panel, 0, wx.ALL | wx.EXPAND, 8)
@@ -165,18 +153,9 @@ class ReceiveSettingsPanel(wx.StaticBoxSizer):
             if static_box:
                 static_box.SetForegroundColour(panel_fg)
             
-            # 先设置链接颜色（在递归之前）
-            link_color = theme_manager.hex_to_wx_colour(colors.get('link_color', '#4FC3F7'))
-            self.clear_link.SetForegroundColour(link_color)
-            self.clear_link.SetBackgroundColour(panel_bg)
-            
             # 递归应用到所有StaticText、RadioButton、CheckBox和Panel
             def apply_to_labels(widget):
                 try:
-                    # 完全跳过清除接收链接
-                    if widget == self.clear_link:
-                        return
-                    
                     if isinstance(widget, wx.StaticText):
                         widget.SetForegroundColour(panel_fg)
                         widget.SetBackgroundColour(panel_bg)

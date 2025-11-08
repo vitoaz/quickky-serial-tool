@@ -67,15 +67,14 @@ class SettingsDialog(wx.Dialog):
         sizer.Add(reconnect_sizer, 0, wx.EXPAND | wx.ALL, 10)
         
         # 按钮
-        btn_sizer = wx.StdDialogButtonSizer()
+        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
         ok_btn = wx.Button(self, wx.ID_OK, label='确定')
         cancel_btn = wx.Button(self, wx.ID_CANCEL, label='取消')
         ok_btn.Bind(wx.EVT_BUTTON, self._on_ok)
         cancel_btn.Bind(wx.EVT_BUTTON, lambda e: self.EndModal(wx.ID_CANCEL))
-        btn_sizer.AddButton(ok_btn)
-        btn_sizer.AddButton(cancel_btn)
-        btn_sizer.Realize()
-        sizer.Add(btn_sizer, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+        btn_sizer.Add(ok_btn, 0, wx.RIGHT, 5)
+        btn_sizer.Add(cancel_btn, 0)
+        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.ALL, 10)
         
         self.SetSizer(sizer)
         self.Fit()

@@ -8,6 +8,7 @@ Email: vitoyuz@foxmail.com
 import wx
 from .quick_commands_panel_wx import QuickCommandsPanel
 from .send_history_panel_wx import SendHistoryPanel
+from utils.custom_controls_wx import ThemedNotebook
 
 
 class CommandPanel(wx.Panel):
@@ -26,8 +27,8 @@ class CommandPanel(wx.Panel):
     
     def _create_widgets(self):
         """创建控件"""
-        # 使用Notebook创建Tab页
-        self.notebook = wx.Notebook(self)
+        # 使用ThemedNotebook创建Tab页
+        self.notebook = ThemedNotebook(self)
         
         # 快捷指令面板
         self.quick_commands_panel = QuickCommandsPanel(
@@ -61,8 +62,12 @@ class CommandPanel(wx.Panel):
         if theme_manager:
             colors = theme_manager.get_theme_colors()
             bg_color = theme_manager.hex_to_wx_colour(colors.get('background', '#FFFFFF'))
+            fg_color = theme_manager.hex_to_wx_colour(colors.get('foreground', '#000000'))
             self.SetBackgroundColour(bg_color)
-            self.notebook.SetBackgroundColour(bg_color)
+            
+            # 应用主题到ThemedNotebook
+            if hasattr(self.notebook, 'apply_theme'):
+                self.notebook.apply_theme(bg_color, fg_color)
         
         if hasattr(self.quick_commands_panel, 'apply_theme'):
             self.quick_commands_panel.apply_theme(theme_manager)

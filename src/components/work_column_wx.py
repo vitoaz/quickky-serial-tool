@@ -37,8 +37,8 @@ class WorkColumn(wx.Panel):
         self.top_border.SetBackgroundColour(self.GetBackgroundColour())  # 默认与背景色相同
         sizer.Add(self.top_border, 0, wx.EXPAND)
         
-        # 使用ThemedNotebook创建Tab页，支持完整主题
-        self.notebook = ThemedNotebook(self)
+        # 使用ThemedNotebook创建Tab页，支持完整主题，允许双击关闭
+        self.notebook = ThemedNotebook(self, allow_dclick_close=True)
         # FlatNotebook使用不同的事件
         import wx.lib.agw.flatnotebook as fnb
         self.notebook.Bind(fnb.EVT_FLATNOTEBOOK_PAGE_CHANGED, self._on_tab_changed)

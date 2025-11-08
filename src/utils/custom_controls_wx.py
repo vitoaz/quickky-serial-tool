@@ -183,12 +183,19 @@ class ThemedNotebook(fnb.FlatNotebook):
     """支持主题的Notebook - 使用FlatNotebook实现完整主题支持"""
     
     def __init__(self, parent, id=wx.ID_ANY, pos=wx.DefaultPosition,
-                 size=wx.DefaultSize, style=0, name='notebook'):
+                 size=wx.DefaultSize, style=0, name='notebook', 
+                 allow_dclick_close=False, allow_drag=False):
         # FlatNotebook的样式
         fnb_style = (fnb.FNB_NO_X_BUTTON |  # 不显示Tab上的关闭按钮
-                     fnb.FNB_NODRAG |  # 禁用Tab拖动
-                     fnb.FNB_FANCY_TABS |  # 使用漂亮的Tab样式
-                     fnb.FNB_DCLICK_CLOSES_TABS)  # 双击关闭Tab
+                     fnb.FNB_FANCY_TABS)  # 使用漂亮的Tab样式
+        
+        # 如果不允许拖动，添加NODRAG样式
+        if not allow_drag:
+            fnb_style |= fnb.FNB_NODRAG
+        
+        # 如果允许双击关闭，添加相应样式
+        if allow_dclick_close:
+            fnb_style |= fnb.FNB_DCLICK_CLOSES_TABS
         
         super().__init__(parent, id, pos, size, agwStyle=fnb_style, name=name)
         
