@@ -47,6 +47,7 @@ class WorkTab(wx.Panel):
         self.serial_manager = SerialManager()
         self.log_file_path = None
         self.loop_send_timer = None
+        self.is_loop_sending = False  # 循环发送状态标志
         self.theme_manager = None
         
         # 接收数据队列缓存（线程安全）
@@ -404,10 +405,9 @@ class WorkTab(wx.Panel):
     
     def _on_send_config_changed(self, settings):
         """发送配置变化"""
-        if settings.get('stop_loop') and hasattr(self, 'is_loop_sending') and self.is_loop_sending:
-            self._stop_loop_send()
-            self.is_loop_sending = False
-            self.send_btn.SetLabel('发送')
+        # 如果循环发送被取消勾选，且正在循环发送，则停止并重置
+        if self.is_loop_sending and not settings.get('loop_send', False):
+            self._stop_loop_send_and_reset()
     
     def _on_send_text_modified(self, event):
         """发送文本修改事件"""
@@ -451,7 +451,9 @@ class WorkTab(wx.Panel):
     
     def _disconnect(self):
         """断开串口"""
-        self._stop_loop_send()
+        # 停止循环发送
+        self._stop_loop_send_and_reset()
+        
         self._stop_auto_reconnect()
         self.serial_manager.close()
         self.connect_btn.SetLabel('打开串口')
@@ -530,6 +532,9 @@ class WorkTab(wx.Panel):
     
     def _handle_disconnect(self):
         """处理断开事件"""
+        # 停止循环发送
+        self._stop_loop_send_and_reset()
+        
         self._append_receive('[警告] 串口已断开\n', 'warning')
         self.connect_btn.SetLabel('打开串口')
         self.send_btn.Enable(False)
@@ -538,12 +543,18 @@ class WorkTab(wx.Panel):
         if self.auto_reconnect_enabled:
             self._start_auto_reconnect()
     
+    def _stop_loop_send_and_reset(self):
+        """停止循环发送并重置状态"""
+        self._stop_loop_send()
+        self.is_loop_sending = False
+        self.send_btn.SetLabel('发送')
+        self.send_btn.Refresh()
+        self.send_btn.Update()
+    
     def _toggle_send(self, event):
         """切换发送/取消循环发送"""
-        if hasattr(self, 'is_loop_sending') and self.is_loop_sending:
-            self._stop_loop_send()
-            self.is_loop_sending = False
-            self.send_btn.SetLabel('发送')
+        if self.is_loop_sending:
+            self._stop_loop_send_and_reset()
         else:
             self._send_data()
     
@@ -603,6 +614,13 @@ class WorkTab(wx.Panel):
                 self._append_receive('[错误] 无法使用任何编码发送数据\n', 'error')
                 return
         
+        # 检查串口是否打开
+        if not self.serial_manager.is_open():
+            # 如果串口已关闭，停止循环发送
+            self._stop_loop_send_and_reset()
+            self._append_receive('[错误] 串口未打开，无法发送\n', 'error')
+            return
+        
         # 发送数据，使用实际确定的编码（HEX模式时actual_encoding为None，使用默认编码）
         send_encoding = actual_encoding if actual_encoding else self.receive_settings.get_settings()['encoding']
         if self.serial_manager.send(data, send_mode, send_encoding):
@@ -624,6 +642,8 @@ class WorkTab(wx.Panel):
                 self.send_btn.SetLabel('取消发送')
                 self._start_loop_send()
         else:
+            # 发送失败，停止循环发送
+            self._stop_loop_send_and_reset()
             self._append_receive('[错误] 发送失败\n', 'error')
     
     def _start_loop_send(self):
@@ -634,9 +654,17 @@ class WorkTab(wx.Panel):
             self.loop_send_timer = threading.Timer(period / 1000.0, self._loop_send_callback)
             self.loop_send_timer.daemon = True
             self.loop_send_timer.start()
+        else:
+            # 如果串口未打开或循环发送未启用，重置状态
+            self._stop_loop_send_and_reset()
     
     def _loop_send_callback(self):
         """循环发送回调"""
+        # 检查串口是否还打开，如果关闭了就停止循环发送
+        if not self.serial_manager.is_open():
+            wx.CallAfter(self._stop_loop_send_and_reset)
+            return
+        
         wx.CallAfter(self._send_data)
     
     def _stop_loop_send(self):
@@ -832,7 +860,9 @@ class WorkTab(wx.Panel):
     def cleanup(self):
         """清理资源"""
         try:
-            self._stop_loop_send()
+            # 停止循环发送并重置状态
+            self._stop_loop_send_and_reset()
+            
             self._stop_auto_reconnect()
             
             # 停止显示定时器
