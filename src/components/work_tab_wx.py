@@ -10,6 +10,7 @@ import wx.stc as stc
 import wx.adv
 from datetime import datetime
 import threading
+import queue
 from .serial_settings_panel_wx import SerialSettingsPanel
 from .receive_settings_panel_wx import ReceiveSettingsPanel
 from .send_settings_panel_wx import SendSettingsPanel
@@ -47,6 +48,10 @@ class WorkTab(wx.Panel):
         self.log_file_path = None
         self.loop_send_timer = None
         self.theme_manager = None
+        
+        # 接收数据队列缓存（线程安全）
+        self.receive_queue = queue.Queue()
+        self.display_timer = None  # 用于定时刷新显示的定时器
         
         # 日志级别样式定义
         self.level_styles = {
@@ -300,6 +305,12 @@ class WorkTab(wx.Panel):
         """设置回调函数"""
         self.serial_manager.set_receive_callback(self._on_data_received)
         self.serial_manager.set_disconnect_callback(self._on_disconnected)
+        
+        # 初始化显示定时器（100ms刷新一次）
+        self.display_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._flush_display_queue, self.display_timer)
+        self.display_timer.Start(100)  # 100ms间隔
+        
         if self.is_first_tab:
             # 延迟执行，确保Tab已经完全加载到Notebook中
             wx.CallAfter(self._init_default_port)
@@ -645,7 +656,7 @@ class WorkTab(wx.Panel):
         self.send_text.Clear()
     
     def _append_receive(self, text, level='normal'):
-        """追加接收数据，直接写入"""
+        """追加接收数据，先写入队列缓存"""
         settings = self.receive_settings.get_settings()
         display_text = text
         
@@ -657,7 +668,7 @@ class WorkTab(wx.Panel):
             else:
                 display_text = timestamp + text + '\n'
         
-        # 保存到日志文件
+        # 保存到日志文件（立即写入，不等待队列）
         if settings['save_log'] and self.log_file_path:
             try:
                 with open(self.log_file_path, 'a', encoding='utf-8') as f:
@@ -665,29 +676,52 @@ class WorkTab(wx.Panel):
             except Exception as e:
                 print(f"写入日志文件失败: {e}")
         
-        # 直接写入接收区
+        # 将数据加入队列，等待定时器刷新到界面
+        self.receive_queue.put((display_text, level))
+    
+    def _flush_display_queue(self, event=None):
+        """从队列中取出数据并刷新到文本控件（定时器回调，100ms执行一次）"""
+        if self.receive_queue.empty():
+            return
+        
+        # 批量处理队列中的数据，提高效率
+        items_to_display = []
+        while not self.receive_queue.empty():
+            try:
+                item = self.receive_queue.get_nowait()
+                items_to_display.append(item)
+            except:
+                break
+        
+        if not items_to_display:
+            return
+        
+        # 批量写入接收区
         self.receive_text.SetReadOnly(False)
         
-        # 如果是系统消息（info/error/warning/success），检查上一次最后一个字符是否为换行符
-        if level != 'normal':
-            text_length = self.receive_text.GetLength()
-            if text_length > 0:
-                last_char = self.receive_text.GetCharAt(text_length - 1)
-                # 如果最后一个字符不是换行符（\n的ASCII码是10），先添加换行
-                if last_char != 10:
-                    self.receive_text.AppendText('\n')
+        settings = self.receive_settings.get_settings()
         
-        # 获取当前文本末尾位置
-        pos = self.receive_text.GetLength()
-        
-        # 插入文本
-        self.receive_text.AppendText(display_text)
-        
-        # 应用样式到新插入的文本
-        style_id = self.level_styles.get(level, 0)
-        end_pos = self.receive_text.GetLength()
-        self.receive_text.StartStyling(pos)
-        self.receive_text.SetStyling(end_pos - pos, style_id)
+        for display_text, level in items_to_display:
+            # 如果是系统消息（info/error/warning/success），检查上一次最后一个字符是否为换行符
+            if level != 'normal':
+                text_length = self.receive_text.GetLength()
+                if text_length > 0:
+                    last_char = self.receive_text.GetCharAt(text_length - 1)
+                    # 如果最后一个字符不是换行符（\n的ASCII码是10），先添加换行
+                    if last_char != 10:
+                        self.receive_text.AppendText('\n')
+            
+            # 获取当前文本末尾位置
+            pos = self.receive_text.GetLength()
+            
+            # 插入文本
+            self.receive_text.AppendText(display_text)
+            
+            # 应用样式到新插入的文本
+            style_id = self.level_styles.get(level, 0)
+            end_pos = self.receive_text.GetLength()
+            self.receive_text.StartStyling(pos)
+            self.receive_text.SetStyling(end_pos - pos, style_id)
         
         # 检查buffer大小限制
         global_settings = self.config_manager.get_global_settings()
@@ -800,6 +834,19 @@ class WorkTab(wx.Panel):
         try:
             self._stop_loop_send()
             self._stop_auto_reconnect()
+            
+            # 停止显示定时器
+            if self.display_timer:
+                self.display_timer.Stop()
+                self.display_timer = None
+            
+            # 清空接收队列
+            while not self.receive_queue.empty():
+                try:
+                    self.receive_queue.get_nowait()
+                except:
+                    break
+            
             if self.serial_manager:
                 self.serial_manager.close()
             
