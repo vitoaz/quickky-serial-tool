@@ -86,6 +86,24 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
     def _refresh_ports(self, event=None):
         """刷新可用串口列表"""
         ports = SerialManager.get_available_ports()
+        
+        # 按COM后的数值排序
+        def port_sort_key(port):
+            """提取COM后的数字用于排序"""
+            if port.upper().startswith('COM'):
+                try:
+                    # 提取COM后的数字
+                    num_str = port[3:].strip()
+                    return int(num_str)
+                except ValueError:
+                    # 如果无法转换为数字，返回一个很大的值，排在后面
+                    return float('inf')
+            else:
+                # 非COM开头的串口，排在最后
+                return float('inf')
+        
+        ports = sorted(ports, key=port_sort_key)
+        
         self.port_combo.Clear()
         for port in ports:
             self.port_combo.Append(port)
