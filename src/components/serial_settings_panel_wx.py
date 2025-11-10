@@ -178,6 +178,8 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
             if self.port_combo.FindString(port) == wx.NOT_FOUND:
                 self.port_combo.Append(port)
             self.port_combo.SetValue(port)
+            self.port_combo.Refresh()
+            self.port_combo.Update()
             self._on_port_changed(None)
     
     def set_enabled(self, enabled):
