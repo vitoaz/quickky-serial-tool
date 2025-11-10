@@ -62,6 +62,9 @@ class WorkTab(wx.Panel):
             'success': 3,  # 成功（绿色）
             'warning': 4   # 警告（红色）
         }
+        # 日志模式拼接状态
+        self.last_log_append_time = None
+        self.last_log_line_ended = True
         
         # 自动重连相关
         self.auto_reconnect_enabled = False
@@ -496,8 +499,8 @@ class WorkTab(wx.Panel):
             # HEX模式
             formatted_data = ' '.join([f'{b:02X}' for b in data]) + ' '
             if settings['log_mode']:
-                # 日志模式：每次收到数据前附加时间戳并换行
-                self._append_receive(formatted_data + '\n')
+                # 日志模式：不强制换行，交由 _append_receive 按规则决定
+                self._append_receive(formatted_data)
             else:
                 # 普通模式：直接append
                 self._append_receive(formatted_data)
@@ -527,19 +530,15 @@ class WorkTab(wx.Panel):
             
             # TEXT模式
             if settings['log_mode']:
-                # 日志模式：分行处理，每行前附加时间戳
+                # 日志模式：按原始换行处理，不强制追加换行
                 # 统一换行符：\r\n -> \n, \r -> \n
                 normalized_data = formatted_data.replace('\r\n', '\n').replace('\r', '\n')
                 
-                # 如果数据不以\n结尾，添加一个\n
-                if normalized_data and not normalized_data.endswith('\n'):
-                    normalized_data += '\n'
-                
-                # 按行分割并处理
                 if normalized_data:
-                    lines = normalized_data.split('\n')
-                    for line in lines:
-                        self._append_receive(line + '\n')
+                    # 保留行尾（keepends=True），逐段追加
+                    for segment in normalized_data.splitlines(True):
+                        if segment:
+                            self._append_receive(segment)
             else:
                 # 普通模式：直接append
                 self._append_receive(formatted_data)
@@ -694,6 +693,9 @@ class WorkTab(wx.Panel):
         self.receive_text.SetReadOnly(False)
         self.receive_text.ClearAll()
         self.receive_text.SetReadOnly(True)
+        # 清空后，认为上一条已结束，下一条需要时间戳
+        self.last_log_line_ended = True
+        self.last_log_append_time = None
     
     def _clear_send(self, event):
         """清除发送区"""
@@ -704,13 +706,38 @@ class WorkTab(wx.Panel):
         settings = self.receive_settings.get_settings()
         display_text = text
         
-        # 日志模式下添加时间戳
+        # 日志模式下：
+        # - 不强制在末尾追加\n
+        # - 如果上一条已换行，或与上一条间隔>100ms，则本条前置时间戳
+        # - 否则视为连续数据，不加时间戳
         if settings['log_mode']:
-            timestamp = datetime.now().strftime('[%H:%M:%S.%f')[:-3] + '] '
-            if text.endswith('\n'):
-                display_text = timestamp + text
+            now = datetime.now()
+            need_timestamp = False
+            if self.last_log_line_ended:
+                need_timestamp = True
+            elif self.last_log_append_time is None:
+                need_timestamp = True
             else:
-                display_text = timestamp + text + '\n'
+                delta_ms = (now - self.last_log_append_time).total_seconds() * 1000.0
+                if delta_ms > 100:
+                    need_timestamp = True
+            if need_timestamp:
+                ts = now.strftime('[%H:%M:%S.%f')[:-3] + '] '
+                # 如果上一行未以换行结束，在时间戳前补一个换行，避免粘连
+                prefix_newline = ''
+                if not self.last_log_line_ended:
+                    if not (text and text[0] == '\n'):
+                        prefix_newline = '\n'
+                display_text = prefix_newline + ts + text
+            else:
+                display_text = text
+            # 记录本条状态
+            self.last_log_line_ended = display_text.endswith('\n')
+            self.last_log_append_time = now
+        else:
+            # 非日志模式也更新状态，保证模式切换时连续性判断合理
+            self.last_log_line_ended = text.endswith('\n')
+            self.last_log_append_time = datetime.now()
         
         # 保存到日志文件（立即写入，不等待队列）
         if settings['save_log'] and self.log_file_path:
