@@ -325,8 +325,8 @@ class WorkTab(wx.Panel):
         last_port = self.config_manager.get_last_port(self.panel_type)
         ports = self.serial_settings.get_available_ports()
         
-        if last_port and last_port in ports:
-            # 如果上次的串口还存在，选择它
+        if last_port:
+            # 如果存在上次使用的串口，优先选择它（即使当前不存在，set_current_port会处理）
             self.serial_settings.set_current_port(last_port)
         elif ports:
             # 否则选择第一个可用串口

@@ -155,8 +155,12 @@ class SerialSettingsPanel(wx.StaticBoxSizer):
     
     def set_current_port(self, port):
         """设置当前串口"""
-        self.port_combo.SetValue(port)
-        self._on_port_changed(None)
+        if port:
+            # 如果串口不在列表中，先添加它
+            if self.port_combo.FindString(port) == wx.NOT_FOUND:
+                self.port_combo.Append(port)
+            self.port_combo.SetValue(port)
+            self._on_port_changed(None)
     
     def set_enabled(self, enabled):
         """设置控件启用/禁用状态"""
