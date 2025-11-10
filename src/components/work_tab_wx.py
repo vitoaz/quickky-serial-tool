@@ -349,6 +349,10 @@ class WorkTab(wx.Panel):
             self.receive_settings.load_config(value, config['receive_settings'])
             self.send_settings.load_config(value, config['send_settings'])
             
+            # 加载配置后，同步自动重连状态
+            receive_settings = self.receive_settings.get_settings()
+            self.auto_reconnect_enabled = receive_settings.get('auto_reconnect', False)
+            
             # 加载发送文本
             send_text = self.config_manager.get_send_text(value)
             self.send_text.SetValue(send_text)
@@ -423,6 +427,24 @@ class WorkTab(wx.Panel):
         else:
             self._connect()
     
+    def _update_connection_state(self, is_connected):
+        """
+        更新连接状态UI
+        
+        Args:
+            is_connected (bool): 是否已连接
+        """
+        if is_connected:
+            self.connect_btn.SetLabel('关闭串口')
+            self.send_btn.Enable(True)
+            self.serial_settings.set_enabled(False)
+        else:
+            self.connect_btn.SetLabel('打开串口')
+            self.send_btn.Enable(False)
+            self.serial_settings.set_enabled(True)
+        self.connect_btn.Refresh()
+        self.connect_btn.Update()
+
     def _connect(self):
         """连接串口"""
         port = self.serial_settings.get_current_port()
@@ -440,10 +462,8 @@ class WorkTab(wx.Panel):
             stopbits=settings['stopbits'],
             flow_control=settings['flow_control']
         ):
-            self.connect_btn.SetLabel('关闭串口')
-            self.send_btn.Enable(True)
+            self._update_connection_state(True)
             self._append_receive(f'[信息] 串口已打开: {port}\n', 'success')
-            self.serial_settings.set_enabled(False)
         else:
             self._append_receive(f'[错误] 打开串口失败: {port}\n', 'error')
             if self.auto_reconnect_enabled:
@@ -456,10 +476,8 @@ class WorkTab(wx.Panel):
         
         self._stop_auto_reconnect()
         self.serial_manager.close()
-        self.connect_btn.SetLabel('打开串口')
-        self.send_btn.Enable(False)
+        self._update_connection_state(False)
         self._append_receive('[信息] 串口已关闭\n', 'info')
-        self.serial_settings.set_enabled(True)
     
     def _on_data_received(self, data):
         """接收到数据"""
@@ -536,9 +554,7 @@ class WorkTab(wx.Panel):
         self._stop_loop_send_and_reset()
         
         self._append_receive('[警告] 串口已断开\n', 'warning')
-        self.connect_btn.SetLabel('打开串口')
-        self.send_btn.Enable(False)
-        self.serial_settings.set_enabled(True)
+        self._update_connection_state(False)
         
         if self.auto_reconnect_enabled:
             self._start_auto_reconnect()
@@ -848,10 +864,8 @@ class WorkTab(wx.Panel):
             stopbits=settings['stopbits'],
             flow_control=settings['flow_control']
         ):
-            self.connect_btn.SetLabel('关闭串口')
-            self.send_btn.Enable(True)
+            self._update_connection_state(True)
             self._append_receive(f'[信息] 自动重连成功: {port}\n', 'success')
-            self.serial_settings.set_enabled(False)
             self._stop_auto_reconnect()
         else:
             self._append_receive(f'[错误] 自动重连失败: {port}，{int(self.reconnect_interval)}秒后重试\n', 'error')
@@ -881,9 +895,7 @@ class WorkTab(wx.Panel):
                 self.serial_manager.close()
             
             # 重置界面状态
-            self.connect_btn.SetLabel('打开串口')
-            self.send_btn.Enable(False)
-            self.serial_settings.set_enabled(True)
+            self._update_connection_state(False)
         except Exception as e:
             print(f"清理Tab资源时出错: {e}")
     
