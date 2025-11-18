@@ -68,18 +68,67 @@ class QuickCommandsPanel(wx.Panel):
         # 清空现有Tab
         while self.group_notebook.GetPageCount() > 0:
             self.group_notebook.DeletePage(0)
-        
+
         groups = self.config_manager.get_quick_command_groups()
-        
+
         # 如果没有分组，创建默认分组
         if not groups:
             groups = [{'name': '默认', 'commands': []}]
             self.config_manager.set_quick_command_groups(groups)
-        
+
         # 为每个分组创建Tab
         for group in groups:
             self._create_group_tab(group)
-    
+
+    def _refresh_tab(self, tab_index):
+        """刷新指定Tab的内容"""
+        if tab_index < 0 or tab_index >= self.group_notebook.GetPageCount():
+            return
+
+        # 获取Tab页面
+        page = self.group_notebook.GetPage(tab_index)
+        if not page:
+            return
+
+        # 查找ListCtrl
+        list_ctrl = None
+        for child in page.GetChildren():
+            if isinstance(child, wx.ListCtrl):
+                list_ctrl = child
+                break
+
+        if not list_ctrl:
+            return
+
+        # 清空现有项目
+        list_ctrl.DeleteAllItems()
+
+        # 从配置中重新加载该分组的数据
+        groups = self.config_manager.get_quick_command_groups()
+        if tab_index < len(groups):
+            group = groups[tab_index]
+            for cmd in group['commands']:
+                name = cmd.get('name', '')
+                mode = cmd.get('mode', 'TEXT')
+                # 获取data字段，如果不存在则使用command字段
+                data = cmd.get('data', cmd.get('command', ''))
+                # 确保data是字符串
+                if not isinstance(data, str):
+                    data = str(data) if data is not None else ''
+                # 转义换行符用于显示
+                display_data = data.replace('\n', '\\n').replace('\r', '\\r')
+
+                # 在数据前面添加模式标注
+                mode_prefix = '[H] ' if mode == 'HEX' else '[T] '
+                display_data = mode_prefix + display_data
+
+                index = list_ctrl.InsertItem(list_ctrl.GetItemCount(), name)
+                list_ctrl.SetItem(index, 1, display_data)
+
+        # 重新应用主题到这个Tab
+        if self.main_window and hasattr(self.main_window, 'theme_manager'):
+            self._apply_theme_to_tab(tab_index)
+
     def _create_group_tab(self, group):
         """创建分组Tab"""
         tab_panel = wx.Panel(self.group_notebook)
@@ -312,8 +361,7 @@ class QuickCommandsPanel(wx.Panel):
                 'data': command  # 同时保存data字段以兼容
             })
             self.config_manager.set_quick_command_groups(groups)
-            self._load_groups()
-            self.group_notebook.SetSelection(current_tab)
+            self._refresh_tab(current_tab)
         dialog.Destroy()
     
     def _edit_command(self, list_ctrl):
@@ -346,8 +394,7 @@ class QuickCommandsPanel(wx.Panel):
                 'data': command  # 同时保存data字段以兼容
             }
             self.config_manager.set_quick_command_groups(groups)
-            self._load_groups()
-            self.group_notebook.SetSelection(current_tab)
+            self._refresh_tab(current_tab)
         dialog.Destroy()
     
     def _delete_command(self, list_ctrl):
@@ -363,8 +410,7 @@ class QuickCommandsPanel(wx.Panel):
             groups = self.config_manager.get_quick_command_groups()
             groups[current_tab]['commands'].pop(index)
             self.config_manager.set_quick_command_groups(groups)
-            self._load_groups()
-            self.group_notebook.SetSelection(current_tab)
+            self._refresh_tab(current_tab)
     
     def _send_command(self, list_ctrl):
         """发送指令"""
