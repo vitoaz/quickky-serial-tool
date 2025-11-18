@@ -537,7 +537,8 @@ class WorkTab(wx.Panel):
                 if normalized_data:
                     # 保留行尾（keepends=True），逐段追加
                     for segment in normalized_data.splitlines(True):
-                        if segment:
+                        # 过滤空行：只包含空白字符的行不显示
+                        if segment and segment.strip():
                             self._append_receive(segment)
             else:
                 # 普通模式：直接append
