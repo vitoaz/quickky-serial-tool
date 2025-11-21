@@ -8,7 +8,7 @@ Email: vitoyuz@foxmail.com
 from datetime import datetime
 import os
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 
 def generate_version_file():
     """生成version.py文件"""

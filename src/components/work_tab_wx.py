@@ -541,8 +541,16 @@ class WorkTab(wx.Panel):
                         if segment and segment.strip():
                             self._append_receive(segment)
             else:
-                # 普通模式：直接append
-                self._append_receive(formatted_data)
+                # 普通模式：分行处理并过滤空白行
+                # 统一换行符：\r\n -> \n, \r -> \n
+                normalized_data = formatted_data.replace('\r\n', '\n').replace('\r', '\n')
+
+                if normalized_data:
+                    # 保留行尾（keepends=True），逐段追加
+                    for segment in normalized_data.splitlines(True):
+                        # 过滤空行：只包含空白字符的行不显示
+                        if segment and segment.strip():
+                            self._append_receive(segment)
     
     def _on_disconnected(self):
         """串口断开"""
