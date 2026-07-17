@@ -20,7 +20,7 @@ src/
   components/    Qt 界面组件
   utils/         串口、配置、主题和辅助工具
 themes/          Light、Dark 主题配置
-scripts/         版本信息与发布许可证脚本
+scripts/         版本信息、发布许可证与 PyInstaller 裁剪钩子
 licenses/        Qt/PySide6 发布声明
 docs/design/     设计文档
 ```
