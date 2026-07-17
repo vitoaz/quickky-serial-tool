@@ -40,6 +40,7 @@ config.json
 !requirements.txt
 !README.md
 !LICENSE
+.plan/
 
 # PyInstaller
 *.spec

@@ -8,7 +8,7 @@ Email: vitoyuz@foxmail.com
 from datetime import datetime
 import os
 
-VERSION = "1.1.3"
+VERSION = "2.0.0"
 
 def generate_version_file():
     """生成version.py文件"""
@@ -39,4 +39,3 @@ BUILD_TIME = "{build_time}"
 
 if __name__ == '__main__':
     generate_version_file()
-
