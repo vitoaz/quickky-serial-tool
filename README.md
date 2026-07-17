@@ -1,73 +1,35 @@
-# QSerial (Quickky Serial Tool)
+# QSerial（Quickky Serial Tool）
 
-一个功能强大的串口调试工具，基于Python + wxPython开发。
-
-## 🚀 核心特性
-
-### 🔥 双栏模式
-- **主栏 + 副栏**：同时操作两个串口，支持独立配置
-- **一键切换**：点击任意区域激活对应栏目
-- **独立配置**：每个栏目保存独立的串口设置和历史记录
-
-### 📑 多Tab工作区
-- **无限Tab**：支持创建多个工作Tab，每个Tab独立工作
-- **独立配置**：每个Tab保存独立的串口参数和设置
-- **快速切换**：Tab之间快速切换，提高工作效率
-
-### 💡 智能功能
-- **TEXT/HEX双模式**：支持文本和十六进制数据收发
-- **自动保存配置**：按串口号自动保存和加载配置
-- **配置导入导出**：支持配置文件的导入和导出
-- **快捷指令管理**：保存常用指令，一键发送
-- **发送历史记录**：自动记录发送历史，支持搜索和重发
-- **主题配色切换**：支持Light和Dark主题，提供舒适的视觉体验
-- **字体大小设置**：可自定义接收区域字体大小（6-20点）
-
-## 安装依赖
-
-```bash
-pip3 install -r requirements.txt
-```
+QSerial 是面向开发和测试人员的 Windows 串口调试工具。默认界面基于 Python、PySide6 和 Qt Widgets，支持多 Tab、单栏/双栏串口会话、TEXT/HEX 收发、快捷指令、发送历史、日志和 Light/Dark 主题。
 
 ## 运行
 
-### 开发调试
-
 ```bash
+pip3 install -r requirements.txt
 run.bat
 ```
 
-或者：
+也可以直接执行 `python3 src/main/app_qt.py`。
 
-```bash
-python3 src/main/app_wx.py
-```
-
-### 构建发布
+## 构建 Windows 单文件
 
 ```bash
 build.bat
 ```
 
-生成的可执行文件位于 `dist/QSerial.exe`，同时生成发布包 `dist/QSerial_v1.0.0.zip`
+构建产物为 `dist/QSerial.exe`。主题、图标和 Qt 运行时均被打入单文件；`config.json` 与 EXE 放在同一运行目录。`dist/LICENSE` 与 `dist/licenses/` 中的 LGPLv3/GPLv3、第三方声明必须随发布包一并分发。
 
 ## 技术栈
 
-- **Python 3.x**: 主开发语言
-- **wxPython**: GUI界面框架（高性能）
-- **pyserial**: 串口通信库
-- **PyInstaller**: 打包工具
-
-## 开发者信息
-
-- **作者**: Aaz
-- **邮箱**: vitoyuz@foxmail.com
-
-## 🤖 Agent 驱动开发方式
-
-本项目采用 Agent 驱动开发方式。Agent 在修改代码前必须先阅读 [AGENTS.md](AGENTS.md) 和 [核心设计文档](docs/design/PROJECT_DESIGN.md)，并保持代码实现与设计文档一致。
+- Python 3
+- PySide6 + Qt Widgets
+- pyserial
+- PyInstaller
 
 ## 许可证
 
-MIT License
+项目代码采用 [MIT License](LICENSE)。PySide6/Qt 按 LGPLv3 使用；发布时须保留 `licenses/THIRD_PARTY_NOTICES.md`，并随发行物提供完整 LGPLv3/GPLv3 文本和 Qt/PySide6 源码获取方式。
 
+## Agent 驱动开发
+
+本项目采用 Agent 驱动开发方式。修改前必须先阅读 [AGENTS.md](AGENTS.md) 和 [docs/design/PROJECT_DESIGN.md](docs/design/PROJECT_DESIGN.md)，并同步维护实现与设计文档的一致性。
