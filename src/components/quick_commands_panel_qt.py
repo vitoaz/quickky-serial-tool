@@ -17,7 +17,7 @@ class QuickCommandsPanel(QWidget):
         if not groups: groups = [{"name": "默认", "commands": []}]; self.config_manager.set_quick_command_groups(groups)
         for index, group in enumerate(groups): self._create_group_tab(index, group)
     def _create_group_tab(self, index, group):
-        table = QTableWidget(0, 2); table.setHorizontalHeaderLabels(["名称", "数据"]); table.horizontalHeader().setStretchLastSection(True); table.setSelectionBehavior(QTableWidget.SelectRows); table.setEditTriggers(QTableWidget.NoEditTriggers); table.itemDoubleClicked.connect(lambda _item, table=table: self._send_command(table)); table.setContextMenuPolicy(Qt.CustomContextMenu); table.customContextMenuRequested.connect(lambda pos, table=table: self._command_menu(table, pos)); self._fill_table(table, group)
+        table = QTableWidget(0, 2); table.setHorizontalHeaderLabels(["名称", "数据"]); table.horizontalHeader().setStretchLastSection(True); table.verticalHeader().setVisible(False); table.setSelectionBehavior(QTableWidget.SelectRows); table.setEditTriggers(QTableWidget.NoEditTriggers); table.itemDoubleClicked.connect(lambda _item, table=table: self._send_command(table)); table.setContextMenuPolicy(Qt.CustomContextMenu); table.customContextMenuRequested.connect(lambda pos, table=table: self._command_menu(table, pos)); self._fill_table(table, group)
         self.group_notebook.addTab(table, group.get("name", "默认"))
     def _fill_table(self, table, group):
         table.setRowCount(0)

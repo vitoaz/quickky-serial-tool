@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
 from components.command_panel_qt import CommandPanel
 from components.work_panel_qt import WorkPanel
@@ -16,13 +16,13 @@ from utils.theme_manager_qt import ThemeManagerQt
 
 class MainWindow(QMainWindow):
     def __init__(self):
-        super().__init__(); self.setWindowTitle(AppInfo.get_window_title()); self.resize(1200, 720)
+        super().__init__(); QApplication.setStyle("Windows"); self.setWindowTitle(AppInfo.get_window_title()); self.resize(1200, 720)
         icon = Path(resource_path("icon.png"))
         if icon.exists(): self.setWindowIcon(QIcon(str(icon)))
         self.config_manager, self.theme_manager = ConfigManager(), ThemeManagerQt(); self._create_widgets(); self._create_menu(); self.apply_theme()
     def _create_widgets(self):
         self.work_panel = WorkPanel(self.config_manager, self.theme_manager, self._on_data_sent, self); self.command_panel = CommandPanel(self.config_manager, self, self)
-        self.splitter = QSplitter(); self.splitter.addWidget(self.work_panel); self.splitter.addWidget(self.command_panel); self.splitter.setStretchFactor(0, 1); self.command_panel.setVisible(self.config_manager.get_command_panel_visible()); self.setCentralWidget(self.splitter)
+        self.splitter = QSplitter(); self.splitter.setChildrenCollapsible(False); self.splitter.addWidget(self.work_panel); self.splitter.addWidget(self.command_panel); self.splitter.setCollapsible(0, False); self.splitter.setCollapsible(1, False); self.splitter.setStretchFactor(0, 1); self.command_panel.setVisible(self.config_manager.get_command_panel_visible()); self.setCentralWidget(self.splitter)
     def _create_menu(self):
         file_menu = self.menuBar().addMenu("文件")
         self._action(file_menu, "导出配置", self._export_config); self._action(file_menu, "导入配置", self._import_config); file_menu.addSeparator(); self._action(file_menu, "设置", self._settings); file_menu.addSeparator(); self._action(file_menu, "退出", self.close)
@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
     def _toggle_command(self, checked): self.command_panel.setVisible(checked); self.config_manager.set_command_panel_visible(checked)
     def _change_theme(self, name): self.config_manager.set_theme(name); self.apply_theme()
     def apply_theme(self):
-        name = self.config_manager.get_theme(); self.theme_manager.load_theme(name); self.setStyleSheet(self.theme_manager.stylesheet()); self.work_panel.apply_theme()
+        name = self.config_manager.get_theme(); self.theme_manager.load_theme(name); QApplication.instance().setPalette(self.theme_manager.palette()); self.setStyleSheet(self.theme_manager.stylesheet()); self.work_panel.apply_theme()
         for action in self.theme_actions: action.setChecked(action.text().lower() == self.theme_manager._theme_name.lower())
     def _export_config(self):
         path, _ = QFileDialog.getSaveFileName(self, "导出配置", "config.json", "JSON 文件 (*.json)")

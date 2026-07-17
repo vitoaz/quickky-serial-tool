@@ -1,7 +1,7 @@
 """Qt 多 Tab 工作栏。"""
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import QMenu, QTabWidget, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QMenu, QStyle, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget
 
 from .work_tab_qt import WorkTab
 
@@ -9,11 +9,20 @@ from .work_tab_qt import WorkTab
 class WorkColumn(QWidget):
     def __init__(self, config_manager, theme_manager=None, panel_type="main", on_column_activated=None, on_tab_data_sent=None, parent=None):
         super().__init__(parent); self.config_manager, self.theme_manager, self.panel_type, self.on_column_activated, self.on_tab_data_sent = config_manager, theme_manager, panel_type, on_column_activated, on_tab_data_sent
-        self.notebook = QTabWidget(); self.notebook.setTabsClosable(True); self.notebook.tabCloseRequested.connect(self._close_tab); self.notebook.currentChanged.connect(self._on_changed); self.notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.notebook.tabBar().customContextMenuRequested.connect(self._tab_menu)
-        self.add_tab_button = QToolButton(); self.add_tab_button.setText("+"); self.add_tab_button.setToolTip("新建标签"); self.add_tab_button.setAutoRaise(True); self.add_tab_button.setFixedSize(32, 32); self.add_tab_button.clicked.connect(self._add_new_tab); self.notebook.setCornerWidget(self.add_tab_button, Qt.TopRightCorner)
+        self.notebook = QTabWidget(); self.notebook.setTabsClosable(False); self.notebook.currentChanged.connect(self._on_changed); self.notebook.tabBar().tabBarDoubleClicked.connect(self._close_tab_on_double_click); self.notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.notebook.tabBar().customContextMenuRequested.connect(self._tab_menu)
+        self._add_tab_page = QWidget(self.notebook); self.notebook.blockSignals(True); self._add_tab_index = self.notebook.addTab(self._add_tab_page, "+"); self.notebook.blockSignals(False)
+        for side in (QTabBar.LeftSide, QTabBar.RightSide): self.notebook.tabBar().setTabButton(self._add_tab_index, side, None)
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.notebook); self._add_new_tab(True)
     def _add_new_tab(self, first=False):
-        tab = WorkTab(self.config_manager, "New Tab", first, self.on_tab_data_sent, self.panel_type, self); self._watch_activation(tab); index = self.notebook.addTab(tab, "New Tab"); self.notebook.setCurrentIndex(index); return tab
+        tab = WorkTab(self.config_manager, "New Tab", first, self.on_tab_data_sent, self.panel_type, self); self._watch_activation(tab); index = self.notebook.insertTab(self.notebook.indexOf(self._add_tab_page), tab, "New Tab"); self.notebook.setCurrentIndex(index); self._refresh_close_buttons(); return tab
+    def _is_add_tab(self, index): return self.notebook.widget(index) is self._add_tab_page
+    def _refresh_close_buttons(self):
+        can_close = len(self.get_all_tabs()) > 1
+        for index, tab in enumerate(self.get_all_tabs()):
+            button = self.notebook.tabBar().tabButton(self.notebook.indexOf(tab), QTabBar.RightSide)
+            if not isinstance(button, QToolButton):
+                button = QToolButton(self.notebook.tabBar()); button.setAutoRaise(True); button.setToolTip("关闭标签"); button.setIcon(self.style().standardIcon(QStyle.SP_TitleBarCloseButton)); button.setFixedSize(18, 18); button.clicked.connect(lambda _checked=False, target=tab: self._close_tab(self.notebook.indexOf(target))); self.notebook.tabBar().setTabButton(self.notebook.indexOf(tab), QTabBar.RightSide, button)
+            button.setVisible(can_close)
     def _watch_activation(self, widget):
         widget.installEventFilter(self)
         for child in widget.findChildren(QWidget): child.installEventFilter(self)
@@ -21,17 +30,22 @@ class WorkColumn(QWidget):
         if event.type() == QEvent.MouseButtonPress and self.on_column_activated: self.on_column_activated(self)
         return super().eventFilter(watched, event)
     def _on_changed(self, _index):
+        if self._is_add_tab(_index): self._add_new_tab(); return
         if self.on_column_activated: self.on_column_activated(self)
     def _close_tab(self, index):
-        if self.notebook.count() <= 1: return
-        tab = self.notebook.widget(index); tab.cleanup(); self.notebook.removeTab(index); tab.deleteLater()
+        if self._is_add_tab(index) or len(self.get_all_tabs()) <= 1: return
+        if self.notebook.currentIndex() == index:
+            self.notebook.setCurrentIndex(index - 1 if index > 0 else index + 1)
+        tab = self.notebook.widget(index); tab.cleanup(); self.notebook.removeTab(index); tab.deleteLater(); self._refresh_close_buttons()
+    def _close_tab_on_double_click(self, index):
+        if index >= 0: self._close_tab(index)
     def _tab_menu(self, pos):
         index = self.notebook.tabBar().tabAt(pos); menu = QMenu(self); add = menu.addAction("新建标签"); add.triggered.connect(self._add_new_tab)
-        if index >= 0 and self.notebook.count() > 1:
+        if index >= 0 and not self._is_add_tab(index) and len(self.get_all_tabs()) > 1:
             close = menu.addAction("关闭标签"); close.triggered.connect(lambda: self._close_tab(index))
         menu.exec(self.notebook.tabBar().mapToGlobal(pos))
     def get_current_tab(self): return self.notebook.currentWidget()
-    def get_all_tabs(self): return [self.notebook.widget(index) for index in range(self.notebook.count())]
+    def get_all_tabs(self): return [self.notebook.widget(index) for index in range(self.notebook.count()) if not self._is_add_tab(index)]
     def apply_theme(self, theme_manager):
         for tab in self.get_all_tabs(): tab.apply_theme(theme_manager, self.config_manager.get_font_size())
     def cleanup(self):
