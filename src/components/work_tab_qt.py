@@ -1,6 +1,5 @@
 """Qt 串口工作标签页，针对高频接收采用有界缓冲和批量 UI 刷新。"""
 
-import codecs
 from datetime import datetime
 from pathlib import Path
 
@@ -30,7 +29,6 @@ class WorkTab(QWidget):
         self.serial_manager = SerialManagerQt(); self.serial_manager.disconnected.connect(self._on_disconnected)
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
         self.log_writer = LogWriterQt(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
-        self._decoder_encoding = "utf-8"; self._decoder = codecs.getincrementaldecoder(self._decoder_encoding)(errors="replace")
         self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
@@ -102,13 +100,18 @@ class WorkTab(QWidget):
         self.connect_btn.setEnabled(False); self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
 
     def _close_connection(self):
-        self.reconnect_timer.stop(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
+        self._stop_loop_send(); self.reconnect_timer.stop(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
+
+    def _stop_loop_send(self):
+        self._loop_send_cancelled = True
+        self.loop_timer.stop()
+        self.send_btn.setText("发送")
 
     def _set_connection_state(self, opened):
         self.connect_btn.setText("关闭串口" if opened else "打开串口"); self.serial_settings.set_enabled(not opened)
 
     def _on_disconnected(self):
-        self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n")
+        self._stop_loop_send(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n")
         if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
 
     def _schedule_reconnect(self):
@@ -125,19 +128,41 @@ class WorkTab(QWidget):
 
     def _format_received(self, data):
         settings = self.receive_settings.get_settings()
-        if settings["mode"] == "HEX": return data.hex(" ").upper() + ("\n" if data else "")
+        if settings["mode"] == "HEX":
+            # 与 wx 版一致：HEX 数据保持连续显示，不在每次接收后强制换行。
+            return data.hex(" ").upper() + (" " if data else "")
+
         encoding = settings["encoding"].replace("-", "").lower()
-        if self._decoder_encoding != encoding:
-            self._decoder_encoding = encoding
-            self._decoder = codecs.getincrementaldecoder(encoding)(errors="replace")
-        try: return self._decoder.decode(data)
-        except LookupError: return data.decode("utf-8", errors="replace")
+        encodings = [encoding]
+        if encoding == "ascii":
+            # wx 版在 ASCII 解码失败后会尝试常见中文编码。
+            encodings.extend(("gb2312", "gbk"))
+        text = None
+        for candidate in encodings:
+            try:
+                text = data.decode(candidate)
+                break
+            except (LookupError, UnicodeDecodeError):
+                continue
+        if text is None:
+            text = str(data)
+
+        # 统一换行并忽略纯空白行，保持与 wx 版接收区一致。
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        return "".join(segment for segment in normalized.splitlines(True) if segment.strip())
 
     def _flush_receive(self):
         data, dropped = self.serial_manager.drain(self.MAX_FLUSH_BYTES)
         if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True)
         if not data: return
-        self.rx_count += len(data); self._update_counts(); self._append_text(self._format_received(data))
+        self.rx_count += len(data); self._update_counts()
+        text = self._format_received(data)
+        if self.receive_settings.get_settings()["mode"] == "TEXT":
+            # wx 版按保留换行的文本段逐段追加；日志模式下每个新行会获得独立时间戳。
+            for segment in text.splitlines(True):
+                self._append_text(segment)
+        else:
+            self._append_text(text)
 
     def _append_system(self, text): self._append_text(text, force=True)
 
@@ -145,17 +170,21 @@ class WorkTab(QWidget):
         if not text: return
         settings = self.receive_settings.get_settings()
         now = datetime.now()
-        if settings["log_mode"] and not force:
+        if settings["log_mode"]:
             needs_timestamp = self._last_log_ended or self._last_log_time is None or (now - self._last_log_time).total_seconds() > .1
-            if needs_timestamp: text = ("" if self._last_log_ended else "\n") + now.strftime("[%H:%M:%S.%f]")[:-4] + " " + text
+            if needs_timestamp:
+                timestamp = now.strftime("[%H:%M:%S.%f")[:-3] + "] "
+                text = ("" if self._last_log_ended else "\n") + timestamp + text
+        if force and self.receive_text.document().characterCount() > 1 and not self.receive_text.toPlainText().endswith("\n") and not text.startswith("\n"):
+            # wx 版会在系统消息前补换行，避免与未结束的接收数据粘连。
+            text = "\n" + text
         self._last_log_time, self._last_log_ended = now, text.endswith("\n")
         if self._log_enabled: self.log_writer.write(text)
-        scrollbar = self.receive_text.verticalScrollBar(); at_bottom = scrollbar.value() >= scrollbar.maximum() - 2
         cursor = self.receive_text.textCursor(); cursor.movePosition(QTextCursor.End); cursor.insertText(text)
         excess = self.receive_text.document().characterCount() - self.MAX_DISPLAY_CHARS
         if excess > 0:
             trim = self.receive_text.textCursor(); trim.movePosition(QTextCursor.Start); trim.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, excess); trim.removeSelectedText()
-        if settings["auto_scroll"] and at_bottom and not self._scroll_pending:
+        if settings["auto_scroll"] and not self._scroll_pending:
             self._scroll_pending = True; QTimer.singleShot(0, self._scroll_receive_to_bottom)
 
     def _scroll_receive_to_bottom(self):
@@ -201,9 +230,15 @@ class WorkTab(QWidget):
                 if not override_mode and settings["loop_send"] and not self._loop_send_cancelled and not self.loop_timer.isActive(): self.loop_timer.start(settings["loop_period_ms"]); self.send_btn.setText("取消发送")
             else: self._append_system("[错误] 发送失败\n")
     def _choose_log_file(self):
-        filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log", "日志文件 (*.log *.txt)")
+        filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log", "日志文件 (*.log);;文本文件 (*.txt);;所有文件 (*.*)")
         if not filename: return False
-        if not Path(filename).parent.exists(): return False
+        try:
+            # 与 wx 版一致：选择后立即验证文件可创建，失败时不启用保存日志。
+            with Path(filename).open("a", encoding="utf-8"):
+                pass
+        except OSError as error:
+            self._append_system(f"[错误] 创建日志文件失败: {error}\n")
+            return False
         self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename); self._append_system(f"[信息] 日志文件: {filename}\n"); return self._log_enabled
     def _clear_receive(self): self.receive_text.clear(); self._last_log_ended = True; self._last_log_time = None
     def _reset_counts(self): self.rx_count = self.tx_count = 0; self._update_counts()
