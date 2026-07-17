@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor, QTextFormat
 from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QPlainTextEdit,
                                QPushButton, QSplitter, QVBoxLayout, QWidget)
 
@@ -21,6 +21,7 @@ class WorkTab(QWidget):
     FLUSH_INTERVAL_MS = 25
     MAX_FLUSH_BYTES = 256 * 1024
     MAX_DISPLAY_CHARS = 4 * 1024 * 1024
+    LOG_LEVEL_PROPERTY = int(QTextFormat.UserProperty) + 1
 
     def __init__(self, config_manager, tab_name="New Tab", is_first_tab=False,
                  on_data_sent=None, panel_type="main", parent=None):
@@ -29,6 +30,7 @@ class WorkTab(QWidget):
         self.serial_manager = SerialManagerQt(); self.serial_manager.disconnected.connect(self._on_disconnected)
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
         self.log_writer = LogWriterQt(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
+        self._theme_manager = None
         self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
@@ -96,7 +98,7 @@ class WorkTab(QWidget):
     def _toggle_connection(self):
         if self.serial_manager.is_open(): self._close_connection(); return
         port = self.serial_settings.get_current_port()
-        if not port: self._append_system("[错误] 请先选择串口\n"); return
+        if not port: self._append_system("[错误] 请先选择串口\n", "error"); return
         self.connect_btn.setEnabled(False); self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
 
     def _close_connection(self):
@@ -111,7 +113,7 @@ class WorkTab(QWidget):
         self.connect_btn.setText("关闭串口" if opened else "打开串口"); self.serial_settings.set_enabled(not opened)
 
     def _on_disconnected(self):
-        self._stop_loop_send(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n")
+        self._stop_loop_send(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
         if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
 
     def _schedule_reconnect(self):
@@ -124,7 +126,7 @@ class WorkTab(QWidget):
         if port:
             self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
         else:
-            self._append_system("[警告] 自动重连失败，稍后重试\n"); self._schedule_reconnect()
+            self._append_system("[警告] 自动重连失败，稍后重试\n", "warning"); self._schedule_reconnect()
 
     def _format_received(self, data):
         settings = self.receive_settings.get_settings()
@@ -153,7 +155,7 @@ class WorkTab(QWidget):
 
     def _flush_receive(self):
         data, dropped = self.serial_manager.drain(self.MAX_FLUSH_BYTES)
-        if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True)
+        if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True, level="warning")
         if not data: return
         self.rx_count += len(data); self._update_counts()
         text = self._format_received(data)
@@ -164,9 +166,9 @@ class WorkTab(QWidget):
         else:
             self._append_text(text)
 
-    def _append_system(self, text): self._append_text(text, force=True)
+    def _append_system(self, text, level="info"): self._append_text(text, force=True, level=level)
 
-    def _append_text(self, text, force=False):
+    def _append_text(self, text, force=False, level="normal"):
         if not text: return
         settings = self.receive_settings.get_settings()
         now = datetime.now()
@@ -180,7 +182,7 @@ class WorkTab(QWidget):
             text = "\n" + text
         self._last_log_time, self._last_log_ended = now, text.endswith("\n")
         if self._log_enabled: self.log_writer.write(text)
-        cursor = self.receive_text.textCursor(); cursor.movePosition(QTextCursor.End); cursor.insertText(text)
+        cursor = self.receive_text.textCursor(); cursor.movePosition(QTextCursor.End); cursor.insertText(text, self._receive_text_format(level))
         excess = self.receive_text.document().characterCount() - self.MAX_DISPLAY_CHARS
         if excess > 0:
             trim = self.receive_text.textCursor(); trim.movePosition(QTextCursor.Start); trim.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, excess); trim.removeSelectedText()
@@ -192,6 +194,35 @@ class WorkTab(QWidget):
         if self.receive_settings.get_settings()["auto_scroll"]:
             scrollbar = self.receive_text.verticalScrollBar(); scrollbar.setValue(scrollbar.maximum())
 
+    def _receive_text_format(self, level):
+        text_format = QTextCharFormat()
+        text_format.setForeground(QColor(self._receive_color(level)))
+        text_format.setProperty(self.LOG_LEVEL_PROPERTY, level)
+        return text_format
+
+    def _receive_color(self, level):
+        defaults = {"normal": "#000000", "info": "#0066CC", "error": "#D32F2F", "success": "#388E3C", "warning": "#D32F2F"}
+        colors = self._theme_manager.get_theme_colors() if self._theme_manager else {}
+        return colors.get("text_fg" if level == "normal" else f"log_{level}_color", defaults[level])
+
+    def _refresh_receive_colors(self):
+        document = self.receive_text.document()
+        block = document.begin()
+        while block.isValid():
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                level = fragment.charFormat().property(self.LOG_LEVEL_PROPERTY)
+                if level:
+                    cursor = QTextCursor(document)
+                    cursor.setPosition(fragment.position())
+                    cursor.setPosition(fragment.position() + fragment.length(), QTextCursor.KeepAnchor)
+                    text_format = fragment.charFormat()
+                    text_format.setForeground(QColor(self._receive_color(level)))
+                    cursor.setCharFormat(text_format)
+                iterator += 1
+            block = block.next()
+
     def _send_data(self, override_mode=None, add_to_history=True, from_timer=False):
         if from_timer and self._loop_send_cancelled: return
         if self.loop_timer.isActive() and not from_timer and override_mode is None:
@@ -200,10 +231,10 @@ class WorkTab(QWidget):
         if self._send_in_flight: return
         data = self.send_text.toPlainText(); settings = self.send_settings.get_settings(); mode = override_mode or settings["mode"]
         if not data: return
-        if not self.serial_manager.is_open(): self._append_system("[错误] 串口未打开，无法发送\n"); return
+        if not self.serial_manager.is_open(): self._append_system("[错误] 串口未打开，无法发送\n", "error"); return
         encoding = self.receive_settings.get_settings()["encoding"]
         try: byte_count = len(bytes.fromhex(data.replace(" ", "").replace("\n", ""))) if mode == "HEX" else len(data.encode(encoding.replace("-", "")))
-        except (ValueError, UnicodeError): self._append_system("[错误] 发送内容或编码无效\n"); return
+        except (ValueError, UnicodeError): self._append_system("[错误] 发送内容或编码无效\n", "error"); return
         self._send_in_flight = True; self._pending_send = (data, mode, byte_count, add_to_history, settings, override_mode)
         self.serial_manager.send_async(data, mode, encoding)
 
@@ -214,11 +245,11 @@ class WorkTab(QWidget):
     def _on_operation_completed(self, operation, success):
         if operation == "open":
             self.connect_btn.setEnabled(True)
-            if success: self._set_connection_state(True); self._append_system(f"[信息] 已打开串口: {self.serial_settings.get_current_port()}\n")
+            if success: self._set_connection_state(True); self._append_system(f"[信息] 已打开串口: {self.serial_settings.get_current_port()}\n", "success")
             else:
-                self._set_connection_state(False); self._append_system("[错误] 无法打开串口\n")
+                self._set_connection_state(False); self._append_system("[错误] 无法打开串口\n", "error")
                 if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
-        elif operation == "close": self.connect_btn.setEnabled(True); self._set_connection_state(False); self._append_system("[信息] 串口已关闭\n")
+        elif operation == "close": self.connect_btn.setEnabled(True); self._set_connection_state(False); self._append_system("[信息] 串口已关闭\n", "info")
         elif operation == "send":
             self._send_in_flight = False
             if not self._pending_send: return
@@ -228,7 +259,7 @@ class WorkTab(QWidget):
                 if add_to_history: self.config_manager.add_send_history(data, mode)
                 if self.on_data_sent: self.on_data_sent()
                 if not override_mode and settings["loop_send"] and not self._loop_send_cancelled and not self.loop_timer.isActive(): self.loop_timer.start(settings["loop_period_ms"]); self.send_btn.setText("取消发送")
-            else: self._append_system("[错误] 发送失败\n")
+            else: self._append_system("[错误] 发送失败\n", "error")
     def _choose_log_file(self):
         filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log", "日志文件 (*.log);;文本文件 (*.txt);;所有文件 (*.*)")
         if not filename: return False
@@ -237,12 +268,14 @@ class WorkTab(QWidget):
             with Path(filename).open("a", encoding="utf-8"):
                 pass
         except OSError as error:
-            self._append_system(f"[错误] 创建日志文件失败: {error}\n")
+            self._append_system(f"[错误] 创建日志文件失败: {error}\n", "error")
             return False
-        self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename); self._append_system(f"[信息] 日志文件: {filename}\n"); return self._log_enabled
+        self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename); self._append_system(f"[信息] 日志文件: {filename}\n", "info"); return self._log_enabled
     def _clear_receive(self): self.receive_text.clear(); self._last_log_ended = True; self._last_log_time = None
     def _reset_counts(self): self.rx_count = self.tx_count = 0; self._update_counts()
     def _update_counts(self): self.count_label.setText(f"RX: {self.rx_count}  TX: {self.tx_count}")
-    def apply_theme(self, _theme_manager, font_size=9): self.receive_text.setFont(QFont("Consolas", font_size)); self.send_text.setFont(QFont("Consolas", font_size))
+    def apply_theme(self, theme_manager, font_size=9):
+        self._theme_manager = theme_manager
+        self.receive_text.setFont(QFont("Consolas", font_size)); self.send_text.setFont(QFont("Consolas", font_size)); self._refresh_receive_colors()
     def cleanup(self):
         self.flush_timer.stop(); self.loop_timer.stop(); self.reconnect_timer.stop(); self.serial_manager.close_async(); self._log_enabled = False; self.log_writer.stop()
