@@ -1,18 +1,19 @@
 """Qt 多 Tab 工作栏。"""
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import QMenu, QStyle, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QMenu, QStyle, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget
 
 from .work_tab_qt import WorkTab
 
 
 class WorkColumn(QWidget):
     def __init__(self, config_manager, theme_manager=None, panel_type="main", on_column_activated=None, on_tab_data_sent=None, parent=None):
-        super().__init__(parent); self.config_manager, self.theme_manager, self.panel_type, self.on_column_activated, self.on_tab_data_sent = config_manager, theme_manager, panel_type, on_column_activated, on_tab_data_sent
+        super().__init__(parent); self.config_manager, self.theme_manager, self.panel_type, self.on_column_activated, self.on_tab_data_sent, self.is_active = config_manager, theme_manager, panel_type, on_column_activated, on_tab_data_sent, False
         self.notebook = QTabWidget(); self.notebook.setTabsClosable(False); self.notebook.currentChanged.connect(self._on_changed); self.notebook.tabBar().tabBarDoubleClicked.connect(self._close_tab_on_double_click); self.notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.notebook.tabBar().customContextMenuRequested.connect(self._tab_menu)
         self._add_tab_page = QWidget(self.notebook); self.notebook.blockSignals(True); self._add_tab_index = self.notebook.addTab(self._add_tab_page, "+"); self.notebook.blockSignals(False)
         for side in (QTabBar.LeftSide, QTabBar.RightSide): self.notebook.tabBar().setTabButton(self._add_tab_index, side, None)
-        layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.notebook); self._add_new_tab(True)
+        self.top_border = QFrame(); self.top_border.setFixedHeight(3)
+        layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(0); layout.addWidget(self.top_border); layout.addWidget(self.notebook); self.set_active(False); self._add_new_tab(True)
     def _add_new_tab(self, first=False):
         tab = WorkTab(self.config_manager, "New Tab", first, self.on_tab_data_sent, self.panel_type, self); self._watch_activation(tab); index = self.notebook.insertTab(self.notebook.indexOf(self._add_tab_page), tab, "New Tab"); port = tab.serial_settings.get_current_port(); self.notebook.setTabText(index, port or "New Tab"); self.notebook.setCurrentIndex(index); self._refresh_close_buttons(); return tab
     def _is_add_tab(self, index): return self.notebook.widget(index) is self._add_tab_page
@@ -46,7 +47,14 @@ class WorkColumn(QWidget):
         menu.exec(self.notebook.tabBar().mapToGlobal(pos))
     def get_current_tab(self): return self.notebook.currentWidget()
     def get_all_tabs(self): return [self.notebook.widget(index) for index in range(self.notebook.count()) if not self._is_add_tab(index)]
+    def set_active(self, active):
+        self.is_active = active
+        colors = self.theme_manager.get_theme_colors() if self.theme_manager else {}
+        color = colors.get("active_border", "#0E639C") if active else colors.get("background", "transparent")
+        self.top_border.setStyleSheet(f"background-color: {color}; border: none;")
     def apply_theme(self, theme_manager):
+        self.theme_manager = theme_manager
         for tab in self.get_all_tabs(): tab.apply_theme(theme_manager, self.config_manager.get_font_size())
+        self.set_active(self.is_active)
     def cleanup(self):
         for tab in self.get_all_tabs(): tab.cleanup()

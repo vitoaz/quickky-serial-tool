@@ -97,8 +97,12 @@ class ThemeManagerQt:
             QPushButton[linkButton="true"]:hover {{ color: {active}; text-decoration: underline; }}
             QTabBar::tab {{ background: {colors.get('inactive_tab', bg)}; padding: 7px 10px; border: 1px solid {border}; }}
             QTabBar::tab:selected {{ background: {colors.get('active_tab', text_bg)}; border-top: 2px solid {active}; }}
+            QMenu {{ background: {text_bg}; color: {text_fg}; border: 1px solid {border}; padding: 3px; }}
+            QMenu::item {{ background: transparent; color: {text_fg}; padding: 6px 24px 6px 10px; }}
+            QMenu::item:selected {{ background: {selected}; color: {selected_fg}; }}
+            QMenu::separator {{ height: 1px; background: {border}; margin: 4px 6px; }}
             QTableWidget {{ gridline-color: {border}; alternate-background-color: {button_bg}; }}
             QTableWidget::item {{ padding: 3px 5px; }}
             QHeaderView::section {{ background: {button_bg}; color: {button_fg}; border: 1px solid {border}; padding: 4px; }}
-            QMenu::item:selected, QTableWidget::item:selected {{ background: {selected}; color: {selected_fg}; }}
+            QTableWidget::item:selected {{ background: {selected}; color: {selected_fg}; }}
         """

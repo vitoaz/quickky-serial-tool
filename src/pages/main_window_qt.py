@@ -60,6 +60,6 @@ class MainWindow(QMainWindow):
         label = QLabel(AppInfo.get_about_html() + "<br><br>Qt/PySide6 按 LGPLv3 使用。")
         label.setTextFormat(Qt.RichText); label.setTextInteractionFlags(Qt.TextBrowserInteraction); label.setOpenExternalLinks(True)
         layout.addWidget(label)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok); buttons.accepted.connect(dialog.accept); layout.addWidget(buttons)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok); buttons.button(QDialogButtonBox.Ok).setText("确定"); buttons.accepted.connect(dialog.accept); layout.addWidget(buttons)
         dialog.exec()
     def closeEvent(self, event): self.work_panel.cleanup(); event.accept()
