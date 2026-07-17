@@ -3,6 +3,8 @@
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QLineEdit,
                                QPlainTextEdit, QComboBox, QMessageBox)
 
+from utils.hex_utils import HexUtils
+
 
 class QuickCommandDialog(QDialog):
     def __init__(self, parent=None, command=None):
@@ -12,8 +14,10 @@ class QuickCommandDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel); buttons.accepted.connect(self._accept); buttons.rejected.connect(self.reject); layout.addRow(buttons)
         if command: self.name_text.setText(command.get("name", "")); self.data_text.setPlainText(command.get("data", command.get("command", ""))); self.mode_combo.setCurrentText(command.get("mode", "TEXT"))
     def _accept(self):
-        if not self.name_text.text().strip() or not self.data_text.toPlainText().strip(): QMessageBox.warning(self, "输入错误", "指令名称和内容不能为空"); return
+        data = self.data_text.toPlainText().strip()
+        if not self.name_text.text().strip() or not data: QMessageBox.warning(self, "输入错误", "指令名称和内容不能为空"); return
+        if self.mode_combo.currentText() == "HEX" and not HexUtils.validate_hex_format(data): QMessageBox.warning(self, "输入错误", HexUtils.get_format_error_message()); return
         self.accept()
     def get_command(self):
-        data = self.data_text.toPlainText()
+        data = self.data_text.toPlainText().strip()
         return {"name": self.name_text.text().strip(), "data": data, "command": data, "mode": self.mode_combo.currentText()}

@@ -42,11 +42,19 @@ class SerialSettingsPanel(QGroupBox):
 
     def refresh_ports(self):
         current = self.port_combo.currentText()
-        ports = sorted(SerialManagerQt.get_available_ports(), key=lambda value: (not value.upper().startswith("COM"), value))
-        self.port_combo.blockSignals(True); self.port_combo.clear(); self.port_combo.addItems(ports)
+        def port_sort_key(value):
+            name = value.upper()
+            if name.startswith("COM"):
+                try:
+                    return (0, int(name[3:].strip()))
+                except ValueError:
+                    pass
+            return (1, value)
+        ports = sorted(SerialManagerQt.get_available_ports(), key=port_sort_key)
+        self.port_combo.blockSignals(True); self.port_combo.clear(); self.port_combo.addItem(""); self.port_combo.addItems(ports)
         if current in ports:
             self.port_combo.setCurrentText(current)
-        elif ports:
+        else:
             self.port_combo.setCurrentIndex(0)
         self.port_combo.blockSignals(False)
 
@@ -71,7 +79,12 @@ class SerialSettingsPanel(QGroupBox):
         return {"baudrate": baudrate, "parity": self.parity_combo.currentText(), "bytesize": int(self.bytesize_combo.currentText()), "stopbits": stopbits, "flow_control": self.flow_control_combo.currentText()}
 
     def load_config(self, config):
-        for combo, value in ((self.baudrate_combo, config.get("baudrate", 115200)), (self.parity_combo, config.get("parity", "None")), (self.bytesize_combo, config.get("bytesize", 8)), (self.stopbits_combo, config.get("stopbits", 1)), (self.flow_control_combo, config.get("flow_control", "None"))): combo.setCurrentText(str(int(value) if combo is self.stopbits_combo and isinstance(value, float) and value.is_integer() else value))
+        combos = (self.baudrate_combo, self.parity_combo, self.bytesize_combo, self.stopbits_combo, self.flow_control_combo)
+        for combo in combos: combo.blockSignals(True)
+        try:
+            for combo, value in ((self.baudrate_combo, config.get("baudrate", 115200)), (self.parity_combo, config.get("parity", "None")), (self.bytesize_combo, config.get("bytesize", 8)), (self.stopbits_combo, config.get("stopbits", 1)), (self.flow_control_combo, config.get("flow_control", "None"))): combo.setCurrentText(str(int(value) if combo is self.stopbits_combo and isinstance(value, float) and value.is_integer() else value))
+        finally:
+            for combo in combos: combo.blockSignals(False)
 
     def get_current_port(self): return self.port_combo.currentText()
     def set_current_port(self, port):

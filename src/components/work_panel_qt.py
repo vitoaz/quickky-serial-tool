@@ -10,7 +10,7 @@ class WorkPanel(QWidget):
     def __init__(self, config_manager, theme_manager, on_tab_data_sent=None, parent=None):
         super().__init__(parent); self.config_manager, self.theme_manager, self.on_tab_data_sent = config_manager, theme_manager, on_tab_data_sent; self.active_column = None
         self.main_column = WorkColumn(config_manager, theme_manager, "main", self._activate, on_tab_data_sent, self); self.secondary_column = WorkColumn(config_manager, theme_manager, "secondary", self._activate, on_tab_data_sent, self); self.active_column = self.main_column
-        self.splitter = QSplitter(Qt.Horizontal); self.splitter.addWidget(self.main_column); self.splitter.addWidget(self.secondary_column); self.secondary_column.setVisible(config_manager.get_dual_panel_mode())
+        self.splitter = QSplitter(Qt.Horizontal); self.splitter.setChildrenCollapsible(False); self.splitter.addWidget(self.main_column); self.splitter.addWidget(self.secondary_column); self.splitter.setCollapsible(0, False); self.splitter.setCollapsible(1, False); self.secondary_column.setVisible(config_manager.get_dual_panel_mode())
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.splitter)
     def _activate(self, column): self.active_column = column
     def toggle_dual_panel_mode(self, enabled):

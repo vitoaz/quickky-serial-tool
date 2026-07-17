@@ -20,6 +20,9 @@ class SendHistoryPanel(QWidget):
             except ValueError: pass
             data = str(item.get("data", "")).replace("\n", "\\n"); data = ("[H] " if item.get("mode") == "HEX" else "[T] ") + (data[:50] + ("..." if len(data) > 50 else "")); self.table.setItem(row, 0, QTableWidgetItem(time)); self.table.setItem(row, 1, QTableWidgetItem(data))
     def _menu(self, pos):
+        item = self.table.itemAt(pos)
+        if item: self.table.selectRow(item.row())
+        else: self.table.clearSelection(); self.table.setCurrentItem(None)
         menu = QMenu(self); row = self.table.currentRow()
         if row >= 0: send = menu.addAction("发送"); send.triggered.connect(self._send_selected)
         clear = menu.addAction("清空历史"); clear.triggered.connect(self._clear); menu.exec(self.table.viewport().mapToGlobal(pos))

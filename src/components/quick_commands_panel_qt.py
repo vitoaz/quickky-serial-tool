@@ -1,11 +1,50 @@
 """Qt 快捷指令分组、编辑和发送面板。"""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QHeaderView, QInputDialog, QMenu, QMessageBox, QTabWidget,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+                               QAbstractItemView, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from .quick_command_dialog_qt import QuickCommandDialog
+
+
+class CommandTable(QTableWidget):
+    rows_reordered = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(0, 2, parent)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.setDragEnabled(True); self.setAcceptDrops(True); self.setDropIndicatorShown(True)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+
+    def dropEvent(self, event):
+        if event.source() is not self:
+            super().dropEvent(event)
+            return
+        selected = self.selectionModel().selectedRows()
+        if len(selected) != 1:
+            event.ignore()
+            return
+        source = selected[0].row()
+        target = self.indexAt(event.position().toPoint()).row()
+        if target < 0:
+            target = self.rowCount()
+        if target == source or target == source + 1:
+            event.acceptProposedAction()
+            return
+        self._move_row(source, target)
+        event.acceptProposedAction()
+        self.rows_reordered.emit()
+
+    def _move_row(self, source, target):
+        items = [self.takeItem(source, column) for column in range(self.columnCount())]
+        self.removeRow(source)
+        if target > source:
+            target -= 1
+        self.insertRow(target)
+        for column, item in enumerate(items):
+            self.setItem(target, column, item)
+        self.selectRow(target)
 
 
 class QuickCommandsPanel(QWidget):
@@ -18,16 +57,22 @@ class QuickCommandsPanel(QWidget):
         if not groups: groups = [{"name": "默认", "commands": []}]; self.config_manager.set_quick_command_groups(groups)
         for index, group in enumerate(groups): self._create_group_tab(index, group)
     def _create_group_tab(self, index, group):
-        table = QTableWidget(0, 2); compact_font = QFont(table.font().family(), 7); table.setFont(compact_font); table.horizontalHeader().setFont(compact_font); table.verticalHeader().setDefaultSectionSize(22); table.setHorizontalHeaderLabels(["名称", "数据"]); table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed); table.setColumnWidth(0, 75); table.horizontalHeader().setStretchLastSection(True); table.verticalHeader().setVisible(False); table.setSelectionBehavior(QTableWidget.SelectRows); table.setEditTriggers(QTableWidget.NoEditTriggers); table.itemDoubleClicked.connect(lambda _item, table=table: self._send_command(table)); table.setContextMenuPolicy(Qt.CustomContextMenu); table.customContextMenuRequested.connect(lambda pos, table=table: self._command_menu(table, pos)); self._fill_table(table, group)
+        table = CommandTable(); compact_font = QFont(table.font().family(), 7); table.setFont(compact_font); table.horizontalHeader().setFont(compact_font); table.verticalHeader().setDefaultSectionSize(22); table.setHorizontalHeaderLabels(["名称", "数据"]); table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed); table.setColumnWidth(0, 75); table.horizontalHeader().setStretchLastSection(True); table.verticalHeader().setVisible(False); table.setSelectionBehavior(QTableWidget.SelectRows); table.setEditTriggers(QTableWidget.NoEditTriggers); table.itemDoubleClicked.connect(lambda _item, table=table: self._send_command(table)); table.setContextMenuPolicy(Qt.CustomContextMenu); table.customContextMenuRequested.connect(lambda pos, table=table: self._command_menu(table, pos)); table.rows_reordered.connect(lambda table=table: self._save_command_order(table)); self._fill_table(table, group)
         self.group_notebook.addTab(table, group.get("name", "默认"))
     def _fill_table(self, table, group):
         table.setRowCount(0)
         for command in group.get("commands", []):
-            row = table.rowCount(); table.insertRow(row); data = str(command.get("data", command.get("command", ""))); prefix = "[H] " if command.get("mode") == "HEX" else "[T] "; table.setItem(row, 0, QTableWidgetItem(command.get("name", ""))); table.setItem(row, 1, QTableWidgetItem(prefix + data.replace("\n", "\\n").replace("\r", "\\r")))
+            row = table.rowCount(); table.insertRow(row); data = str(command.get("data", command.get("command", ""))); prefix = "[H] " if command.get("mode") == "HEX" else "[T] "; name_item = QTableWidgetItem(command.get("name", "")); name_item.setData(Qt.UserRole, command); table.setItem(row, 0, name_item); table.setItem(row, 1, QTableWidgetItem(prefix + data.replace("\n", "\\n").replace("\r", "\\r")))
     def _current_index(self): return self.group_notebook.currentIndex()
     def _current_table(self): return self.group_notebook.currentWidget()
     def _save_group_order(self):
         old = {group["name"]: group for group in self._groups()}; self.config_manager.set_quick_command_groups([old[self.group_notebook.tabText(i)] for i in range(self.group_notebook.count())])
+    def _save_command_order(self, table):
+        index = self.group_notebook.indexOf(table)
+        if index < 0: return
+        groups = self._groups()
+        groups[index]["commands"] = [table.item(row, 0).data(Qt.UserRole) for row in range(table.rowCount())]
+        self.config_manager.set_quick_command_groups(groups)
     def _group_menu(self, pos):
         index = self.group_notebook.tabBar().tabAt(pos); menu = QMenu(self); add = menu.addAction("新建分组"); add.triggered.connect(self._add_group)
         if index >= 0:
@@ -44,6 +89,9 @@ class QuickCommandsPanel(QWidget):
         if len(groups) <= 1: QMessageBox.warning(self, "提示", "至少需要保留一个分组"); return
         if QMessageBox.question(self, "确认", f'确定删除分组“{groups[index]["name"]}”？') == QMessageBox.Yes: groups.pop(index); self.config_manager.set_quick_command_groups(groups); self._load_groups()
     def _command_menu(self, table, pos):
+        item = table.itemAt(pos)
+        if item: table.selectRow(item.row())
+        else: table.clearSelection(); table.setCurrentItem(None)
         menu = QMenu(self); row = table.currentRow()
         add = menu.addAction("添加指令"); add.triggered.connect(self._add_command)
         if row >= 0:

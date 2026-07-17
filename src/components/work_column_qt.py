@@ -14,7 +14,7 @@ class WorkColumn(QWidget):
         for side in (QTabBar.LeftSide, QTabBar.RightSide): self.notebook.tabBar().setTabButton(self._add_tab_index, side, None)
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.notebook); self._add_new_tab(True)
     def _add_new_tab(self, first=False):
-        tab = WorkTab(self.config_manager, "New Tab", first, self.on_tab_data_sent, self.panel_type, self); self._watch_activation(tab); index = self.notebook.insertTab(self.notebook.indexOf(self._add_tab_page), tab, "New Tab"); self.notebook.setCurrentIndex(index); self._refresh_close_buttons(); return tab
+        tab = WorkTab(self.config_manager, "New Tab", first, self.on_tab_data_sent, self.panel_type, self); self._watch_activation(tab); index = self.notebook.insertTab(self.notebook.indexOf(self._add_tab_page), tab, "New Tab"); port = tab.serial_settings.get_current_port(); self.notebook.setTabText(index, port or "New Tab"); self.notebook.setCurrentIndex(index); self._refresh_close_buttons(); return tab
     def _is_add_tab(self, index): return self.notebook.widget(index) is self._add_tab_page
     def _refresh_close_buttons(self):
         can_close = len(self.get_all_tabs()) > 1

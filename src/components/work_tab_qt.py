@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor, QTextFormat
 from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QPlainTextEdit,
-                               QPushButton, QSplitter, QVBoxLayout, QWidget)
+                               QPushButton, QSplitter, QTabWidget, QVBoxLayout, QWidget)
 
 from components.receive_settings_panel_qt import ReceiveSettingsPanel
 from components.send_settings_panel_qt import SendSettingsPanel
@@ -27,6 +27,7 @@ class WorkTab(QWidget):
                  on_data_sent=None, panel_type="main", parent=None):
         super().__init__(parent)
         self.config_manager, self.tab_name, self.on_data_sent, self.panel_type = config_manager, tab_name, on_data_sent, panel_type
+        self.is_first_tab = is_first_tab
         self.serial_manager = SerialManagerQt(); self.serial_manager.disconnected.connect(self._on_disconnected)
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
         self.log_writer = LogWriterQt(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
@@ -48,7 +49,7 @@ class WorkTab(QWidget):
         left_layout.addStretch()
         self.receive_text = QPlainTextEdit(); self.receive_text.setReadOnly(True); self.receive_text.setLineWrapMode(QPlainTextEdit.NoWrap); self.receive_text.document().setMaximumBlockCount(self.config_manager.get_global_settings().get("receive_buffer_size", 10000)); self.receive_text.setFont(QFont("Consolas", self.config_manager.get_font_size()))
         self.send_text = QPlainTextEdit(); self.send_text.setFont(QFont("Consolas", self.config_manager.get_font_size())); self.send_text.textChanged.connect(self._save_send_draft)
-        self.send_btn = QPushButton("发送"); self.send_btn.clicked.connect(lambda: self._send_data())
+        self.send_btn = QPushButton("发送"); self.send_btn.setEnabled(False); self.send_btn.clicked.connect(lambda: self._send_data())
         self.clear_receive_btn, self.clear_send_btn, self.reset_count_btn = self._link_button("清除接收"), self._link_button("清除发送"), self._link_button("复位计数")
         self.clear_receive_btn.clicked.connect(self._clear_receive); self.clear_send_btn.clicked.connect(self.send_text.clear); self.reset_count_btn.clicked.connect(self._reset_counts)
         self.count_label = QLabel("RX: 0  TX: 0")
@@ -59,8 +60,13 @@ class WorkTab(QWidget):
         right_layout.addWidget(QLabel("接收数据")); right_layout.addWidget(self.receive_text, 3); right_layout.addLayout(receive_actions); right_layout.addWidget(QLabel("发送数据")); right_layout.addWidget(self.send_text, 1); right_layout.addLayout(send_actions); right_layout.addLayout(status_actions)
         splitter = QSplitter(Qt.Horizontal); splitter.setChildrenCollapsible(False); splitter.addWidget(left); splitter.addWidget(right); splitter.setCollapsible(0, False); splitter.setCollapsible(1, False); splitter.setStretchFactor(1, 1)
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(splitter)
-        port = self.config_manager.get_last_port(self.panel_type) or self.serial_settings.get_current_port()
-        if port: self.serial_settings.set_current_port(port)
+        # 与 wx 版一致：首个 Tab 恢复上次串口，其余通过“+”创建的 Tab 保持未选择。
+        if self.is_first_tab:
+            port = self.config_manager.get_last_port(self.panel_type)
+            if port:
+                self.serial_settings.set_current_port(port)
+            elif self.serial_settings.port_combo.count() > 1:
+                self.serial_settings.set_current_port(self.serial_settings.port_combo.itemText(1))
 
     @staticmethod
     def _link_button(text):
@@ -72,10 +78,13 @@ class WorkTab(QWidget):
             self.receive_settings.load_config(value, config["receive_settings"])
             self.send_settings.load_config(value, config["send_settings"])
             self.send_text.blockSignals(True); self.send_text.setPlainText(config.get("send_text", "")); self.send_text.blockSignals(False)
+            self._update_tab_title(value)
 
     def _receive_changed(self, settings):
         if not settings["save_log"] and self._log_enabled:
             self._log_enabled = False; self.log_file_path = None; self.log_writer.close()
+        if not settings["auto_reconnect"]:
+            self.reconnect_timer.stop()
     def _send_settings_changed(self, settings):
         if not settings["loop_send"]:
             self._loop_send_cancelled = True
@@ -110,7 +119,16 @@ class WorkTab(QWidget):
         self.send_btn.setText("发送")
 
     def _set_connection_state(self, opened):
-        self.connect_btn.setText("关闭串口" if opened else "打开串口"); self.serial_settings.set_enabled(not opened)
+        self.connect_btn.setText("关闭串口" if opened else "打开串口"); self.send_btn.setEnabled(opened); self.serial_settings.set_enabled(not opened)
+
+    def _update_tab_title(self, port):
+        parent = self.parentWidget()
+        while parent:
+            if isinstance(parent, QTabWidget):
+                index = parent.indexOf(self)
+                if index >= 0: parent.setTabText(index, port)
+                return
+            parent = parent.parentWidget()
 
     def _on_disconnected(self):
         self._stop_loop_send(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
@@ -157,6 +175,9 @@ class WorkTab(QWidget):
         data, dropped = self.serial_manager.drain(self.MAX_FLUSH_BYTES)
         if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True, level="warning")
         if not data: return
+        max_blocks = self.config_manager.get_global_settings().get("receive_buffer_size", 10000)
+        if self.receive_text.document().maximumBlockCount() != max_blocks:
+            self.receive_text.document().setMaximumBlockCount(max_blocks)
         self.rx_count += len(data); self._update_counts()
         text = self._format_received(data)
         if self.receive_settings.get_settings()["mode"] == "TEXT":
@@ -231,10 +252,25 @@ class WorkTab(QWidget):
         if self._send_in_flight: return
         data = self.send_text.toPlainText(); settings = self.send_settings.get_settings(); mode = override_mode or settings["mode"]
         if not data: return
-        if not self.serial_manager.is_open(): self._append_system("[错误] 串口未打开，无法发送\n", "error"); return
+        if not self.serial_manager.is_open(): self._stop_loop_send(); self._append_system("[错误] 串口未打开，无法发送\n", "error"); return
         encoding = self.receive_settings.get_settings()["encoding"]
-        try: byte_count = len(bytes.fromhex(data.replace(" ", "").replace("\n", ""))) if mode == "HEX" else len(data.encode(encoding.replace("-", "")))
-        except (ValueError, UnicodeError): self._append_system("[错误] 发送内容或编码无效\n", "error"); return
+        try:
+            if mode == "HEX":
+                byte_count = len(bytes.fromhex(data.replace(" ", "").replace("\n", "")))
+            else:
+                encodings = [encoding]
+                if encoding == "ASCII": encodings.extend(("GB2312", "GBK"))
+                for candidate in encodings:
+                    try:
+                        byte_count = len(data.encode(candidate.replace("-", "").lower()))
+                        encoding = candidate
+                        break
+                    except (LookupError, UnicodeEncodeError):
+                        continue
+                else:
+                    self._append_system("[错误] 无法使用任何编码发送数据\n", "error")
+                    return
+        except ValueError: self._append_system("[错误] 发送内容无效\n", "error"); return
         self._send_in_flight = True; self._pending_send = (data, mode, byte_count, add_to_history, settings, override_mode)
         self.serial_manager.send_async(data, mode, encoding)
 
@@ -259,7 +295,7 @@ class WorkTab(QWidget):
                 if add_to_history: self.config_manager.add_send_history(data, mode)
                 if self.on_data_sent: self.on_data_sent()
                 if not override_mode and settings["loop_send"] and not self._loop_send_cancelled and not self.loop_timer.isActive(): self.loop_timer.start(settings["loop_period_ms"]); self.send_btn.setText("取消发送")
-            else: self._append_system("[错误] 发送失败\n", "error")
+            else: self._stop_loop_send(); self._append_system("[错误] 发送失败\n", "error")
     def _choose_log_file(self):
         filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log", "日志文件 (*.log);;文本文件 (*.txt);;所有文件 (*.*)")
         if not filename: return False

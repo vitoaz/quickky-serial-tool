@@ -19,7 +19,9 @@ class ReceiveSettingsPanel(QGroupBox):
         for widget in (self.encoding_utf8, self.encoding_ascii, self.log_mode_check, self.auto_reconnect_check, self.auto_scroll_check): widget.toggled.connect(self._save)
 
     def _mode_changed(self):
-        is_text = self.text_radio.isChecked(); self.encoding_utf8.setEnabled(is_text); self.encoding_ascii.setEnabled(is_text); self._save()
+        self._update_encoding_enabled(); self._save()
+    def _update_encoding_enabled(self):
+        is_text = self.text_radio.isChecked(); self.encoding_utf8.setEnabled(is_text); self.encoding_ascii.setEnabled(is_text)
     def _save_log_changed(self, checked):
         if checked and self.on_save_log_callback and not self.on_save_log_callback(): self.save_log_check.setChecked(False); return
         self._save()
@@ -30,5 +32,10 @@ class ReceiveSettingsPanel(QGroupBox):
     def get_settings(self): return {"mode": "HEX" if self.hex_radio.isChecked() else "TEXT", "encoding": "UTF-8" if self.encoding_utf8.isChecked() else "ASCII", "log_mode": self.log_mode_check.isChecked(), "save_log": self.save_log_check.isChecked(), "auto_reconnect": self.auto_reconnect_check.isChecked(), "auto_scroll": self.auto_scroll_check.isChecked()}
     def load_config(self, port, config):
         self.current_port = port
-        for widget, value in ((self.hex_radio, config.get("mode") == "HEX"), (self.text_radio, config.get("mode", "TEXT") != "HEX"), (self.encoding_utf8, config.get("encoding", "UTF-8") == "UTF-8"), (self.encoding_ascii, config.get("encoding") == "ASCII"), (self.log_mode_check, config.get("log_mode", False)), (self.save_log_check, config.get("save_log", False)), (self.auto_reconnect_check, config.get("auto_reconnect", False)), (self.auto_scroll_check, config.get("auto_scroll", True))): widget.setChecked(value)
-        self._mode_changed()
+        widgets = (self.text_radio, self.hex_radio, self.encoding_utf8, self.encoding_ascii, self.log_mode_check, self.save_log_check, self.auto_reconnect_check, self.auto_scroll_check)
+        for widget in widgets: widget.blockSignals(True)
+        try:
+            for widget, value in ((self.hex_radio, config.get("mode") == "HEX"), (self.text_radio, config.get("mode", "TEXT") != "HEX"), (self.encoding_utf8, config.get("encoding", "UTF-8") == "UTF-8"), (self.encoding_ascii, config.get("encoding") == "ASCII"), (self.log_mode_check, config.get("log_mode", False)), (self.save_log_check, config.get("save_log", False)), (self.auto_reconnect_check, config.get("auto_reconnect", False)), (self.auto_scroll_check, config.get("auto_scroll", True))): widget.setChecked(value)
+        finally:
+            for widget in widgets: widget.blockSignals(False)
+        self._update_encoding_enabled()
