@@ -47,7 +47,7 @@ class WorkTab(QWidget):
         for widget in (self.serial_settings, self.connect_btn, self.receive_settings, self.send_settings): left_layout.addWidget(widget)
         left_layout.addStretch()
         self.receive_text = QPlainTextEdit(); self.receive_text.setReadOnly(True); self.receive_text.setLineWrapMode(QPlainTextEdit.NoWrap); self.receive_text.document().setMaximumBlockCount(self.config_manager.get_global_settings().get("receive_buffer_size", 10000)); self.receive_text.setFont(QFont("Consolas", self.config_manager.get_font_size()))
-        self.send_text = QPlainTextEdit(); self.send_text.setMaximumBlockCount(1000); self.send_text.setFont(QFont("Consolas", self.config_manager.get_font_size())); self.send_text.textChanged.connect(self._save_send_draft)
+        self.send_text = QPlainTextEdit(); self.send_text.setFont(QFont("Consolas", self.config_manager.get_font_size())); self.send_text.textChanged.connect(self._save_send_draft)
         self.send_btn = QPushButton("发送"); self.send_btn.clicked.connect(lambda: self._send_data())
         self.clear_receive_btn, self.clear_send_btn, self.reset_count_btn = self._link_button("清除接收"), self._link_button("清除发送"), self._link_button("复位计数")
         self.clear_receive_btn.clicked.connect(self._clear_receive); self.clear_send_btn.clicked.connect(self.send_text.clear); self.reset_count_btn.clicked.connect(self._reset_counts)
