@@ -17,7 +17,7 @@ run.bat
 build.bat
 ```
 
-构建产物为 `dist/QSerial.exe`。主题、图标和 Qt 运行时均被打入单文件；`config.json` 与 EXE 放在同一运行目录。`dist/LICENSE` 与 `dist/licenses/` 中的 LGPLv3/GPLv3、第三方声明必须随发布包一并分发。
+构建产物为 `dist/QSerial.exe` 和 `dist/QSerial_v<版本号>.zip`。ZIP 包含 EXE、`LICENSE` 与 `licenses/` 中的 LGPLv3/GPLv3、第三方声明；主题、图标和 Qt 运行时均被打入单文件，不包含开发环境的 `config.json`。用户配置仍与 EXE 放在同一运行目录。
 
 ## 技术栈
 

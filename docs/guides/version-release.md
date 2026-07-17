@@ -19,7 +19,7 @@
    ```
 
 3. 启动 `dist/QSerial.exe`，至少验证应用可启动、版本号正确、主题可加载及主要串口收发流程可用。
-4. 确认发布目录包含 `QSerial.exe`、`LICENSE` 和 `licenses/` 的许可证文件。
+4. 确认发布目录包含 `QSerial.exe`、`QSerial_v<版本号>.zip`、`LICENSE` 和 `licenses/` 的许可证文件。ZIP 包必须包含 EXE、`LICENSE` 和 `licenses/`，不得包含开发环境的 `config.json`。
 
 ## 提交、合并和标签
 
@@ -56,6 +56,6 @@
 
 ## 发布约束
 
-- 只基于当前实际构建产物发布；`build.bat` 不自动生成 ZIP、发布说明或 GitHub Release。
-- 需要 ZIP、发布说明或远程 Release 时，必须由用户单独提出需求，并基于本次实际功能改动生成。
+- 只基于当前实际构建产物发布；`build.bat` 自动生成 ZIP 发布包，但不生成发布说明或 GitHub Release。
+- 需要发布说明或远程 Release 时，必须由用户单独提出需求，并基于本次实际功能改动生成。
 - 发布完成后，确认 `master`、`develop` 和版本标签均已推送。

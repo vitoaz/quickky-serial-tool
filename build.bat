@@ -84,6 +84,10 @@ copy LICENSE dist\LICENSE >nul
 copy licenses\THIRD_PARTY_NOTICES.md dist\licenses\THIRD_PARTY_NOTICES.md >nul
 python3 scripts\collect_qt_licenses.py dist\licenses
 if errorlevel 1 goto :error
+
+python3 scripts\package_release.py
+if errorlevel 1 goto :error
+
 echo 构建完成：dist\QSerial.exe
 exit /b 0
 

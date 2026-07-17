@@ -9,7 +9,7 @@ QSerial（Quickky Serial Tool）是面向开发和测试人员的 Windows 串口
 - Python 3
 - PySide6 + Qt Widgets
 - pyserial
-- PyInstaller（Windows 单文件发布）
+- PyInstaller（Windows 单文件与 ZIP 发布包）
 
 ## 项目结构
 
@@ -20,7 +20,7 @@ src/
   components/    Qt 界面组件
   utils/         串口、配置、主题和辅助工具
 themes/          Light、Dark 主题配置
-scripts/         版本信息、发布许可证与 PyInstaller 裁剪钩子
+scripts/         版本信息、发布许可证、发布包与 PyInstaller 裁剪钩子
 licenses/        Qt/PySide6 发布声明
 docs/design/     设计文档
 docs/guides/     Python 开发与版本发布指南
