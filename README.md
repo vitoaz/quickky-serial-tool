@@ -63,9 +63,9 @@ build.bat
 - **作者**: Aaz
 - **邮箱**: vitoyuz@foxmail.com
 
-## 🤖 AI开发声明
+## 🤖 Agent 驱动开发方式
 
-本项目主要使用AI辅助开发完成。
+本项目采用 Agent 驱动开发方式。Agent 在修改代码前必须先阅读 [AGENTS.md](AGENTS.md) 和 [核心设计文档](docs/design/PROJECT_DESIGN.md)，并保持代码实现与设计文档一致。
 
 ## 许可证
 
