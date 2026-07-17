@@ -23,6 +23,7 @@ themes/          Light、Dark 主题配置
 scripts/         版本信息、发布许可证与 PyInstaller 裁剪钩子
 licenses/        Qt/PySide6 发布声明
 docs/design/     设计文档
+docs/guides/     Python 开发与版本发布指南
 ```
 
 `src/main/app_qt.py` 是 `run.bat` 与 `build.bat` 使用的应用入口。
