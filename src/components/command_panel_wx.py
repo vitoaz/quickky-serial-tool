@@ -2,7 +2,7 @@
 命令面板 (wxPython版本)
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import wx

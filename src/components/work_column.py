@@ -2,7 +2,7 @@
 工作栏目组件 - 管理单个栏目的notebook和tab
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import tkinter as tk

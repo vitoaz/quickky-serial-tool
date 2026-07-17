@@ -2,7 +2,7 @@
 主窗口页面
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import tkinter as tk

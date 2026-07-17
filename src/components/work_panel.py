@@ -2,7 +2,7 @@
 工作面板组件 - 管理整个工作区域和双栏模式
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import tkinter as tk

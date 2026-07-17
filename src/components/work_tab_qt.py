@@ -32,10 +32,11 @@ class WorkTab(QWidget):
         self.log_writer = LogWriterQt(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
         self._decoder_encoding = "utf-8"; self._decoder = codecs.getincrementaldecoder(self._decoder_encoding)(errors="replace")
         self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None
-        self._build_ui()
-        self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive); self.flush_timer.start(self.FLUSH_INTERVAL_MS)
+        self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
         self.reconnect_timer = QTimer(self); self.reconnect_timer.setSingleShot(True); self.reconnect_timer.timeout.connect(self._try_reconnect)
+        self._build_ui()
+        self.flush_timer.start(self.FLUSH_INTERVAL_MS)
 
     def _build_ui(self):
         self.serial_settings = SerialSettingsPanel(self.config_manager, self._serial_changed, self.panel_type, self)

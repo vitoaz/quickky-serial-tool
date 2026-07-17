@@ -2,7 +2,7 @@
 快捷指令面板组件
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import tkinter as tk

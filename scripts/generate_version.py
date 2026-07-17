@@ -2,7 +2,7 @@
 版本号生成脚本
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 from datetime import datetime
@@ -18,7 +18,7 @@ def generate_version_file():
 版本信息（自动生成，请勿手动编辑）
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 VERSION = "{VERSION}"

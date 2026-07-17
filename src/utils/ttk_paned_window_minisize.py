@@ -3,7 +3,7 @@ TTK PanedWindow 最小尺寸支持工具
 提供TTK PanedWindow的最小尺寸约束功能
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import tkinter as tk

@@ -3,7 +3,7 @@
 用于替换wxPython原生控件以实现完整的主题支持
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import wx

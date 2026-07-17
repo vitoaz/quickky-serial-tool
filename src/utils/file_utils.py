@@ -2,7 +2,7 @@
 文件工具类
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import os

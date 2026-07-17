@@ -2,7 +2,7 @@
 应用信息工具类
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import sys
@@ -17,7 +17,7 @@ class AppInfo:
     APP_NAME = "QSerial"
     APP_FULL_NAME = "Quickky Serial Tool"
     AUTHOR = "Aaz"
-    EMAIL = "vitoyuz@foxmail.com"
+    EMAIL = "vitoaaazzz@gmail.com"
     
     # 开源地址
     GITEE_URL = "https://gitee.com/vitoaaazzz/quickky-serial-tool"

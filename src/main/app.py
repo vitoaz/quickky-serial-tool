@@ -3,7 +3,7 @@ Quickky Serial Tool - 串口调试工具
 应用程序启动入口
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import sys

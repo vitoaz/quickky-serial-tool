@@ -2,7 +2,7 @@
 快捷指令编辑对话框 (wxPython版本)
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import wx

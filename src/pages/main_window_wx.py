@@ -2,7 +2,7 @@
 主窗口页面 (wxPython版本)
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import wx

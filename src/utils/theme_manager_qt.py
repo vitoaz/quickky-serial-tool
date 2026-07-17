@@ -42,6 +42,7 @@ class ThemeManagerQt:
         selected = colors.get("selectbackground", "#0078D7")
         selected_fg = colors.get("selectforeground", "#FFFFFF")
         active = colors.get("active_border", selected)
+        check_selected = colors.get("checkbox_selected", selected)
         return f"""
             QWidget {{ background: {bg}; color: {fg}; }}
             QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QTableWidget, QTreeWidget {{
@@ -51,6 +52,14 @@ class ThemeManagerQt:
             QPushButton:hover {{ border-color: {active}; }}
             QTabBar::tab {{ background: {colors.get('inactive_tab', bg)}; padding: 7px 10px; border: 1px solid {border}; }}
             QTabBar::tab:selected {{ background: {colors.get('active_tab', text_bg)}; border-top: 2px solid {active}; }}
+            QToolButton {{ background: {button_bg}; color: {button_fg}; border: 1px solid {border}; font-size: 18px; }}
+            QToolButton:hover {{ border-color: {active}; background: {text_bg}; }}
+            QRadioButton::indicator, QCheckBox::indicator {{ width: 16px; height: 16px; background: {text_bg}; border: 1px solid {border}; }}
+            QRadioButton::indicator {{ border-radius: 8px; }}
+            QRadioButton::indicator:checked {{ background: {check_selected}; border: 5px solid {text_bg}; }}
+            QCheckBox::indicator {{ border-radius: 3px; }}
+            QCheckBox::indicator:checked {{ background: {check_selected}; border: 2px solid {check_selected}; }}
+            QRadioButton::indicator:disabled, QCheckBox::indicator:disabled {{ background: {button_bg}; border-color: {border}; }}
             QHeaderView::section {{ background: {button_bg}; color: {button_fg}; border: 1px solid {border}; padding: 4px; }}
             QMenu::item:selected, QTableWidget::item:selected {{ background: {selected}; color: {selected_fg}; }}
         """

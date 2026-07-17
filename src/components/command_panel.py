@@ -2,7 +2,7 @@
 命令面板组件 - 管理右侧命令面板区域
 
 Author: Aaz
-Email: vitoyuz@foxmail.com
+Email: vitoaaazzz@gmail.com
 """
 
 import tkinter as tk
