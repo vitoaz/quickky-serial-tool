@@ -65,8 +65,8 @@ class WorkTab(QWidget):
             port = self.config_manager.get_last_port(self.panel_type)
             if port:
                 self.serial_settings.set_current_port(port)
-            elif self.serial_settings.port_combo.count() > 1:
-                self.serial_settings.set_current_port(self.serial_settings.port_combo.itemText(1))
+            elif self.serial_settings.port_combo.count() > 0:
+                self.serial_settings.set_current_port(self.serial_settings.port_combo.itemText(0))
 
     @staticmethod
     def _link_button(text):

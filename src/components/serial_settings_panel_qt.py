@@ -51,11 +51,11 @@ class SerialSettingsPanel(QGroupBox):
                     pass
             return (1, value)
         ports = sorted(SerialManagerQt.get_available_ports(), key=port_sort_key)
-        self.port_combo.blockSignals(True); self.port_combo.clear(); self.port_combo.addItem(""); self.port_combo.addItems(ports)
+        self.port_combo.blockSignals(True); self.port_combo.clear(); self.port_combo.addItems(ports)
         if current in ports:
             self.port_combo.setCurrentText(current)
         else:
-            self.port_combo.setCurrentIndex(0)
+            self.port_combo.setCurrentIndex(-1)
         self.port_combo.blockSignals(False)
 
     def _on_port_changed(self, port):
