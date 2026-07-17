@@ -71,13 +71,30 @@ class ThemeManagerQt:
         selected = colors.get("selectbackground", "#0078D7")
         selected_fg = colors.get("selectforeground", "#FFFFFF")
         active = colors.get("active_border", selected)
+        link = colors.get("link_color", selected)
+        is_dark = QColor(bg).lightness() < 128
+        input_border = QColor(border).lighter(160) if is_dark else QColor(border).darker(135)
+        disabled_bg = QColor(button_bg).darker(120) if is_dark else QColor(button_bg).darker(105)
+        disabled_fg = QColor("#8A8A8A") if is_dark else QColor("#7A7A7A")
+        disabled_border = QColor(border).lighter(135) if is_dark else QColor(border).darker(120)
         return f"""
             QWidget {{ background: {bg}; color: {fg}; }}
-            QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QTableWidget, QTreeWidget {{
-                background: {text_bg}; color: {text_fg}; border: 1px solid {border};
+            QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QSpinBox, QTableWidget, QTreeWidget {{
+                background: {text_bg}; color: {text_fg}; border: 1px solid {input_border.name()};
             }}
+            QGroupBox:disabled {{ background: {disabled_bg.name()}; color: {disabled_fg.name()}; border-color: {disabled_border.name()}; }}
+            QGroupBox::title:disabled, QLabel:disabled {{ color: {disabled_fg.name()}; }}
+            QRadioButton:disabled, QCheckBox:disabled {{ color: {disabled_fg.name()}; }}
+            QRadioButton::indicator:disabled, QCheckBox::indicator:disabled {{ color: {disabled_fg.name()}; }}
+            QLineEdit:disabled, QPlainTextEdit:disabled, QTextEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
+                background: {disabled_bg.name()}; color: {disabled_fg.name()}; border-color: {disabled_border.name()};
+            }}
+            QComboBox::drop-down:disabled {{ background: {disabled_bg.name()}; border-left-color: {disabled_border.name()}; }}
             QPushButton {{ background: {button_bg}; color: {button_fg}; border: 1px solid {border}; padding: 5px; }}
             QPushButton:hover {{ border-color: {active}; }}
+            QPushButton:disabled {{ background: {disabled_bg.name()}; color: {disabled_fg.name()}; border-color: {disabled_border.name()}; }}
+            QPushButton[linkButton="true"] {{ background: transparent; color: {link}; border: none; padding: 0; text-align: left; }}
+            QPushButton[linkButton="true"]:hover {{ color: {active}; text-decoration: underline; }}
             QTabBar::tab {{ background: {colors.get('inactive_tab', bg)}; padding: 7px 10px; border: 1px solid {border}; }}
             QTabBar::tab:selected {{ background: {colors.get('active_tab', text_bg)}; border-top: 2px solid {active}; }}
             QTableWidget {{ gridline-color: {border}; alternate-background-color: {button_bg}; }}

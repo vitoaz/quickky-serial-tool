@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QSplitter
 
@@ -22,7 +23,7 @@ class MainWindow(QMainWindow):
         self.config_manager, self.theme_manager = ConfigManager(), ThemeManagerQt(); self._create_widgets(); self._create_menu(); self.apply_theme()
     def _create_widgets(self):
         self.work_panel = WorkPanel(self.config_manager, self.theme_manager, self._on_data_sent, self); self.command_panel = CommandPanel(self.config_manager, self, self)
-        self.splitter = QSplitter(); self.splitter.setChildrenCollapsible(False); self.splitter.addWidget(self.work_panel); self.splitter.addWidget(self.command_panel); self.splitter.setCollapsible(0, False); self.splitter.setCollapsible(1, False); self.splitter.setStretchFactor(0, 1); self.command_panel.setVisible(self.config_manager.get_command_panel_visible()); self.setCentralWidget(self.splitter)
+        self.splitter = QSplitter(); self.splitter.setChildrenCollapsible(False); self.splitter.addWidget(self.work_panel); self.splitter.addWidget(self.command_panel); self.splitter.setCollapsible(0, False); self.splitter.setCollapsible(1, False); self.splitter.setStretchFactor(0, 1); self.command_panel.setVisible(self.config_manager.get_command_panel_visible()); self.setCentralWidget(self.splitter); QTimer.singleShot(0, self._sync_command_panel_width)
     def _create_menu(self):
         file_menu = self.menuBar().addMenu("文件")
         self._action(file_menu, "导出配置", self._export_config); self._action(file_menu, "导入配置", self._import_config); file_menu.addSeparator(); self._action(file_menu, "设置", self._settings); file_menu.addSeparator(); self._action(file_menu, "退出", self.close)
@@ -36,7 +37,11 @@ class MainWindow(QMainWindow):
         action = QAction(title, menu); action.setCheckable(checkable); action.triggered.connect(callback); menu.addAction(action); return action
     def _on_data_sent(self): self.command_panel.refresh_history()
     def _toggle_dual(self, checked): self.work_panel.toggle_dual_panel_mode(checked)
-    def _toggle_command(self, checked): self.command_panel.setVisible(checked); self.config_manager.set_command_panel_visible(checked)
+    def _toggle_command(self, checked): self.command_panel.setVisible(checked); self.config_manager.set_command_panel_visible(checked); QTimer.singleShot(0, self._sync_command_panel_width)
+    def _sync_command_panel_width(self):
+        if not self.command_panel.isVisible() or self.splitter.width() <= 0: return
+        command_width = self.command_panel.width(); work_width = max(0, self.splitter.width() - command_width - self.splitter.handleWidth())
+        self.splitter.setSizes([work_width, command_width])
     def _change_theme(self, name): self.config_manager.set_theme(name); self.apply_theme()
     def apply_theme(self):
         name = self.config_manager.get_theme(); self.theme_manager.load_theme(name); QApplication.instance().setPalette(self.theme_manager.palette()); self.setStyleSheet(self.theme_manager.stylesheet()); self.work_panel.apply_theme()

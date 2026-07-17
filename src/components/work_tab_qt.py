@@ -31,7 +31,7 @@ class WorkTab(QWidget):
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
         self.log_writer = LogWriterQt(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
         self._decoder_encoding = "utf-8"; self._decoder = codecs.getincrementaldecoder(self._decoder_encoding)(errors="replace")
-        self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None
+        self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
         self.reconnect_timer = QTimer(self); self.reconnect_timer.setSingleShot(True); self.reconnect_timer.timeout.connect(self._try_reconnect)
@@ -48,18 +48,23 @@ class WorkTab(QWidget):
         left_layout.addStretch()
         self.receive_text = QPlainTextEdit(); self.receive_text.setReadOnly(True); self.receive_text.setLineWrapMode(QPlainTextEdit.NoWrap); self.receive_text.document().setMaximumBlockCount(self.config_manager.get_global_settings().get("receive_buffer_size", 10000)); self.receive_text.setFont(QFont("Consolas", self.config_manager.get_font_size()))
         self.send_text = QPlainTextEdit(); self.send_text.setMaximumBlockCount(1000); self.send_text.setFont(QFont("Consolas", self.config_manager.get_font_size())); self.send_text.textChanged.connect(self._save_send_draft)
-        self.send_btn = QPushButton("发送"); self.send_btn.clicked.connect(self._send_data)
-        self.clear_receive_btn, self.clear_send_btn, self.reset_count_btn = QPushButton("清除接收"), QPushButton("清除发送"), QPushButton("复位计数")
+        self.send_btn = QPushButton("发送"); self.send_btn.clicked.connect(lambda: self._send_data())
+        self.clear_receive_btn, self.clear_send_btn, self.reset_count_btn = self._link_button("清除接收"), self._link_button("清除发送"), self._link_button("复位计数")
         self.clear_receive_btn.clicked.connect(self._clear_receive); self.clear_send_btn.clicked.connect(self.send_text.clear); self.reset_count_btn.clicked.connect(self._reset_counts)
         self.count_label = QLabel("RX: 0  TX: 0")
         right = QWidget(); right_layout = QVBoxLayout(right); right_layout.setContentsMargins(4, 4, 4, 4)
-        receive_actions = QHBoxLayout(); receive_actions.addWidget(self.clear_receive_btn); receive_actions.addWidget(self.reset_count_btn); receive_actions.addWidget(self.count_label); receive_actions.addStretch()
+        receive_actions = QHBoxLayout(); receive_actions.addWidget(self.clear_receive_btn); receive_actions.addStretch()
         send_actions = QHBoxLayout(); send_actions.addWidget(self.clear_send_btn); send_actions.addStretch(); send_actions.addWidget(self.send_btn)
-        right_layout.addWidget(QLabel("接收数据")); right_layout.addLayout(receive_actions); right_layout.addWidget(self.receive_text, 3); right_layout.addWidget(QLabel("发送数据")); right_layout.addWidget(self.send_text, 1); right_layout.addLayout(send_actions)
+        status_actions = QHBoxLayout(); status_actions.addWidget(self.count_label); status_actions.addStretch(); status_actions.addWidget(self.reset_count_btn)
+        right_layout.addWidget(QLabel("接收数据")); right_layout.addWidget(self.receive_text, 3); right_layout.addLayout(receive_actions); right_layout.addWidget(QLabel("发送数据")); right_layout.addWidget(self.send_text, 1); right_layout.addLayout(send_actions); right_layout.addLayout(status_actions)
         splitter = QSplitter(Qt.Horizontal); splitter.setChildrenCollapsible(False); splitter.addWidget(left); splitter.addWidget(right); splitter.setCollapsible(0, False); splitter.setCollapsible(1, False); splitter.setStretchFactor(1, 1)
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(splitter)
         port = self.config_manager.get_last_port(self.panel_type) or self.serial_settings.get_current_port()
         if port: self.serial_settings.set_current_port(port)
+
+    @staticmethod
+    def _link_button(text):
+        button = QPushButton(text); button.setFlat(True); button.setProperty("linkButton", True); button.setCursor(Qt.PointingHandCursor); font = button.font(); font.setUnderline(True); button.setFont(font); return button
 
     def _serial_changed(self, kind, value):
         if kind == "port":
@@ -72,8 +77,11 @@ class WorkTab(QWidget):
         if not settings["save_log"] and self._log_enabled:
             self._log_enabled = False; self.log_file_path = None; self.log_writer.close()
     def _send_settings_changed(self, settings):
-        if not settings["loop_send"] and self.loop_timer.isActive():
-            self.loop_timer.stop(); self.send_btn.setText("发送")
+        if not settings["loop_send"]:
+            self._loop_send_cancelled = True
+            if self.loop_timer.isActive(): self.loop_timer.stop(); self.send_btn.setText("发送")
+        elif settings["loop_send"] and self.loop_timer.isActive():
+            self.loop_timer.start(settings["loop_period_ms"])
     def _on_send_mode_changed(self, old_mode, new_mode):
         text = self.send_text.toPlainText().strip()
         if not text: return
@@ -147,11 +155,19 @@ class WorkTab(QWidget):
         excess = self.receive_text.document().characterCount() - self.MAX_DISPLAY_CHARS
         if excess > 0:
             trim = self.receive_text.textCursor(); trim.movePosition(QTextCursor.Start); trim.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, excess); trim.removeSelectedText()
-        if settings["auto_scroll"] and at_bottom: scrollbar.setValue(scrollbar.maximum())
+        if settings["auto_scroll"] and at_bottom and not self._scroll_pending:
+            self._scroll_pending = True; QTimer.singleShot(0, self._scroll_receive_to_bottom)
+
+    def _scroll_receive_to_bottom(self):
+        self._scroll_pending = False
+        if self.receive_settings.get_settings()["auto_scroll"]:
+            scrollbar = self.receive_text.verticalScrollBar(); scrollbar.setValue(scrollbar.maximum())
 
     def _send_data(self, override_mode=None, add_to_history=True, from_timer=False):
+        if from_timer and self._loop_send_cancelled: return
         if self.loop_timer.isActive() and not from_timer and override_mode is None:
-            self.loop_timer.stop(); self.send_btn.setText("发送"); return
+            self._loop_send_cancelled = True; self.loop_timer.stop(); self.send_btn.setText("发送"); return
+        if not from_timer and override_mode is None: self._loop_send_cancelled = False
         if self._send_in_flight: return
         data = self.send_text.toPlainText(); settings = self.send_settings.get_settings(); mode = override_mode or settings["mode"]
         if not data: return
@@ -182,7 +198,7 @@ class WorkTab(QWidget):
                 self.tx_count += byte_count; self._update_counts()
                 if add_to_history: self.config_manager.add_send_history(data, mode)
                 if self.on_data_sent: self.on_data_sent()
-                if not override_mode and settings["loop_send"] and not self.loop_timer.isActive(): self.loop_timer.start(settings["loop_period_ms"]); self.send_btn.setText("取消发送")
+                if not override_mode and settings["loop_send"] and not self._loop_send_cancelled and not self.loop_timer.isActive(): self.loop_timer.start(settings["loop_period_ms"]); self.send_btn.setText("取消发送")
             else: self._append_system("[错误] 发送失败\n")
     def _choose_log_file(self):
         filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log", "日志文件 (*.log *.txt)")

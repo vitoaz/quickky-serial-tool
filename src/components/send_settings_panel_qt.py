@@ -1,13 +1,13 @@
 """Qt 发送设置面板。"""
 
-from PySide6.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QRadioButton, QSpinBox, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QRadioButton, QSpinBox, QVBoxLayout
 
 
 class SendSettingsPanel(QGroupBox):
     def __init__(self, config_manager, on_change_callback=None, on_mode_change_callback=None, parent=None):
         super().__init__("发送设置", parent); self.config_manager, self.on_change_callback, self.on_mode_change_callback, self.current_port, self.old_mode = config_manager, on_change_callback, on_mode_change_callback, None, "TEXT"
-        self.text_radio, self.hex_radio = QRadioButton("TEXT"), QRadioButton("HEX"); self.text_radio.setChecked(True); self.loop_send_check = QCheckBox("循环发送"); self.period_spin = QSpinBox(); self.period_spin.setRange(10, 3600000); self.period_spin.setValue(1000); self.period_spin.setSuffix(" ms")
-        layout = QVBoxLayout(self); modes = QHBoxLayout(); modes.addWidget(self.text_radio); modes.addWidget(self.hex_radio); layout.addLayout(modes); layout.addWidget(self.loop_send_check); layout.addWidget(self.period_spin)
+        self.text_radio, self.hex_radio = QRadioButton("TEXT"), QRadioButton("HEX"); self.text_radio.setChecked(True); self.loop_send_check = QCheckBox("循环发送"); self.period_spin = QSpinBox(); self.period_spin.setRange(1, 3600000); self.period_spin.setValue(1000); self.period_spin.setSuffix(" ms")
+        layout = QVBoxLayout(self); modes = QHBoxLayout(); modes.addWidget(self.text_radio); modes.addWidget(self.hex_radio); period = QHBoxLayout(); period.addWidget(QLabel("周期:")); period.addWidget(self.period_spin); layout.addLayout(modes); layout.addWidget(self.loop_send_check); layout.addLayout(period)
         self.text_radio.toggled.connect(self._mode_changed); self.hex_radio.toggled.connect(self._mode_changed); self.loop_send_check.toggled.connect(self._save); self.period_spin.valueChanged.connect(self._save)
     def _mode_changed(self):
         new_mode = "HEX" if self.hex_radio.isChecked() else "TEXT"

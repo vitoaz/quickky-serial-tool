@@ -1,7 +1,8 @@
 """Qt 快捷指令分组、编辑和发送面板。"""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QInputDialog, QMenu, QMessageBox, QTabWidget,
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (QHeaderView, QInputDialog, QMenu, QMessageBox, QTabWidget,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from .quick_command_dialog_qt import QuickCommandDialog
@@ -9,7 +10,7 @@ from .quick_command_dialog_qt import QuickCommandDialog
 
 class QuickCommandsPanel(QWidget):
     def __init__(self, config_manager, main_window=None, parent=None):
-        super().__init__(parent); self.config_manager, self.main_window = config_manager, main_window; self.group_notebook = QTabWidget(); self.group_notebook.setMovable(True); self.group_notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.group_notebook.tabBar().customContextMenuRequested.connect(self._group_menu); self.group_notebook.tabBar().tabMoved.connect(self._save_group_order)
+        super().__init__(parent); self.config_manager, self.main_window = config_manager, main_window; self.group_notebook = QTabWidget(); self.group_notebook.setDocumentMode(True); self.group_notebook.setFont(QFont(self.font().family(), 7)); self.group_notebook.setMovable(True); self.group_notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.group_notebook.tabBar().customContextMenuRequested.connect(self._group_menu); self.group_notebook.tabBar().tabMoved.connect(self._save_group_order)
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.group_notebook); self._load_groups()
     def _groups(self): return self.config_manager.get_quick_command_groups()
     def _load_groups(self):
@@ -17,7 +18,7 @@ class QuickCommandsPanel(QWidget):
         if not groups: groups = [{"name": "默认", "commands": []}]; self.config_manager.set_quick_command_groups(groups)
         for index, group in enumerate(groups): self._create_group_tab(index, group)
     def _create_group_tab(self, index, group):
-        table = QTableWidget(0, 2); table.setHorizontalHeaderLabels(["名称", "数据"]); table.horizontalHeader().setStretchLastSection(True); table.verticalHeader().setVisible(False); table.setSelectionBehavior(QTableWidget.SelectRows); table.setEditTriggers(QTableWidget.NoEditTriggers); table.itemDoubleClicked.connect(lambda _item, table=table: self._send_command(table)); table.setContextMenuPolicy(Qt.CustomContextMenu); table.customContextMenuRequested.connect(lambda pos, table=table: self._command_menu(table, pos)); self._fill_table(table, group)
+        table = QTableWidget(0, 2); compact_font = QFont(table.font().family(), 7); table.setFont(compact_font); table.horizontalHeader().setFont(compact_font); table.verticalHeader().setDefaultSectionSize(22); table.setHorizontalHeaderLabels(["名称", "数据"]); table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed); table.setColumnWidth(0, 75); table.horizontalHeader().setStretchLastSection(True); table.verticalHeader().setVisible(False); table.setSelectionBehavior(QTableWidget.SelectRows); table.setEditTriggers(QTableWidget.NoEditTriggers); table.itemDoubleClicked.connect(lambda _item, table=table: self._send_command(table)); table.setContextMenuPolicy(Qt.CustomContextMenu); table.customContextMenuRequested.connect(lambda pos, table=table: self._command_menu(table, pos)); self._fill_table(table, group)
         self.group_notebook.addTab(table, group.get("name", "默认"))
     def _fill_table(self, table, group):
         table.setRowCount(0)

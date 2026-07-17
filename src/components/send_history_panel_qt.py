@@ -3,13 +3,14 @@
 from datetime import datetime
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QMenu, QMessageBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 
 class SendHistoryPanel(QWidget):
     def __init__(self, config_manager, main_window=None, parent=None):
         super().__init__(parent); self.config_manager, self.main_window, self.items = config_manager, main_window, []
-        self.table = QTableWidget(0, 2); self.table.setHorizontalHeaderLabels(["时间", "数据"]); self.table.horizontalHeader().setStretchLastSection(True); self.table.setSelectionBehavior(QTableWidget.SelectRows); self.table.setEditTriggers(QTableWidget.NoEditTriggers); self.table.itemDoubleClicked.connect(lambda _item: self._send_selected()); self.table.setContextMenuPolicy(Qt.CustomContextMenu); self.table.customContextMenuRequested.connect(self._menu)
+        self.table = QTableWidget(0, 2); compact_font = QFont(self.table.font().family(), 7); self.table.setFont(compact_font); self.table.horizontalHeader().setFont(compact_font); self.table.verticalHeader().setDefaultSectionSize(22); self.table.setHorizontalHeaderLabels(["时间", "数据"]); self.table.horizontalHeader().setStretchLastSection(True); self.table.setSelectionBehavior(QTableWidget.SelectRows); self.table.setEditTriggers(QTableWidget.NoEditTriggers); self.table.itemDoubleClicked.connect(lambda _item: self._send_selected()); self.table.setContextMenuPolicy(Qt.CustomContextMenu); self.table.customContextMenuRequested.connect(self._menu)
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.table); self.refresh()
     def refresh(self):
         self.table.setRowCount(0); self.items = self.config_manager.get_send_history()
