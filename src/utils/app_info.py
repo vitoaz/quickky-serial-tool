@@ -7,6 +7,7 @@ Email: vitoaaazzz@gmail.com
 
 import sys
 import os
+from html import escape
 from .file_utils import get_base_path
 
 
@@ -65,6 +66,20 @@ class AppInfo:
 开源地址:
 Gitee: {cls.GITEE_URL}
 GitHub: {cls.GITHUB_URL}"""
+
+    @classmethod
+    def get_about_html(cls):
+        """获取 Qt 关于对话框使用的可点击链接内容。"""
+        version, build_time = cls._get_version_info()
+        return f"""<b>{escape(cls.APP_NAME)} ({escape(cls.APP_FULL_NAME)})</b><br><br>
+版本: {escape(version)}<br>
+构建时间: {escape(build_time)}<br><br>
+作者: {escape(cls.AUTHOR)}<br>
+邮箱: {escape(cls.EMAIL)}<br><br>
+{escape(cls.DESCRIPTION)}<br><br>
+开源地址:<br>
+Gitee: <a href=\"{escape(cls.GITEE_URL)}\">{escape(cls.GITEE_URL)}</a><br>
+GitHub: <a href=\"{escape(cls.GITHUB_URL)}\">{escape(cls.GITHUB_URL)}</a>"""
     
     @classmethod
     def get_window_title(cls):

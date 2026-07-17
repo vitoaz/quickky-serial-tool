@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QSplitter
+from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QFileDialog,
+                               QLabel, QMainWindow, QMessageBox, QSplitter, QVBoxLayout)
 
 from components.command_panel_qt import CommandPanel
 from components.work_panel_qt import WorkPanel
@@ -53,5 +54,12 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "导入配置", "", "JSON 文件 (*.json)")
         if path: QMessageBox.information(self, "导入配置", "配置导入成功，请重启应用以应用配置。" if self.config_manager.import_config(path) else "配置导入失败！")
     def _settings(self): SettingsDialog(self, self.config_manager).exec()
-    def _about(self): QMessageBox.information(self, "关于", AppInfo.get_about_text() + "\n\nQt/PySide6 按 LGPLv3 使用。")
+    def _about(self):
+        dialog = QDialog(self); dialog.setWindowTitle("关于")
+        layout = QVBoxLayout(dialog)
+        label = QLabel(AppInfo.get_about_html() + "<br><br>Qt/PySide6 按 LGPLv3 使用。")
+        label.setTextFormat(Qt.RichText); label.setTextInteractionFlags(Qt.TextBrowserInteraction); label.setOpenExternalLinks(True)
+        layout.addWidget(label)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok); buttons.accepted.connect(dialog.accept); layout.addWidget(buttons)
+        dialog.exec()
     def closeEvent(self, event): self.work_panel.cleanup(); event.accept()
