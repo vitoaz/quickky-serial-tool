@@ -8,7 +8,7 @@ Email: vitoaaazzz@gmail.com
 from datetime import datetime
 import os
 
-VERSION = "2.0.1"
+VERSION = "2.0.2-snapshot"
 
 def generate_version_file():
     """生成version.py文件"""
