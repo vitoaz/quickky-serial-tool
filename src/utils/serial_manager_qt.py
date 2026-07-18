@@ -57,6 +57,13 @@ class SerialManagerQt(QObject):
             dropped, self._dropped_bytes = self._dropped_bytes, 0
         return b"".join(chunks), dropped
 
+    def clear_pending(self):
+        """丢弃当前会话尚未显示的数据，避免串口切换后混入旧数据。"""
+        with self._lock:
+            self._pending.clear()
+            self._pending_bytes = 0
+            self._dropped_bytes = 0
+
     def _run_async(self, operation, callback):
         def runner():
             try:

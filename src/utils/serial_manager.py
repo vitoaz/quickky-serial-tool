@@ -11,6 +11,8 @@ import threading
 from datetime import datetime
 import time
 
+from .send_data_utils import SendDataUtils
+
 # 串口参数映射
 PARITY_MAP = {
     'None': serial.PARITY_NONE,
@@ -281,11 +283,10 @@ class SerialManager:
             try:
                 if mode == 'HEX':
                     # HEX模式：将十六进制字符串转为字节
-                    hex_str = data.replace(' ', '').replace('\n', '')
-                    send_data = bytes.fromhex(hex_str)
+                    send_data = SendDataUtils.parse_hex(data)
                 else:
                     # TEXT模式：按编码转换
-                    send_data = data.encode(encoding.lower().replace('-', ''))
+                    send_data = SendDataUtils.normalize_text_newlines(data).encode(encoding.lower().replace('-', ''))
                 
                 self.serial_port.write(send_data)
                 result['success'] = True

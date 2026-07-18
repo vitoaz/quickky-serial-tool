@@ -12,6 +12,7 @@ from components.receive_settings_panel_qt import ReceiveSettingsPanel
 from components.send_settings_panel_qt import SendSettingsPanel
 from components.serial_settings_panel_qt import SerialSettingsPanel
 from utils.log_writer import LogWriter
+from utils.receive_data_utils import ReceiveDataUtils, ReceiveLogFormatter, ReceiveTextDecoder, ReceiveTextSegmenter
 from utils.serial_manager_qt import SerialManagerQt
 from utils.send_data_utils import SendDataUtils
 
@@ -33,7 +34,7 @@ class WorkTab(QWidget):
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
         self.log_writer = LogWriter(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
         self._theme_manager = None
-        self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
+        self.receive_decoder = ReceiveTextDecoder(); self.receive_text_segmenter = ReceiveTextSegmenter(); self.receive_log_formatter = ReceiveLogFormatter(); self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
         self.reconnect_timer = QTimer(self); self.reconnect_timer.setSingleShot(True); self.reconnect_timer.timeout.connect(self._try_reconnect)
@@ -75,6 +76,8 @@ class WorkTab(QWidget):
 
     def _serial_changed(self, kind, value):
         if kind == "port":
+            self._reset_receive_session()
+            self._close_log_writer()
             config = self.config_manager.get_port_config(value)
             self.receive_settings.load_config(value, config["receive_settings"])
             self.send_settings.load_config(value, config["send_settings"])
@@ -83,9 +86,15 @@ class WorkTab(QWidget):
 
     def _receive_changed(self, settings):
         if not settings["save_log"] and self._log_enabled:
-            self._log_enabled = False; self.log_file_path = None; self.log_writer.close()
+            self._close_log_writer()
         if not settings["auto_reconnect"]:
             self.reconnect_timer.stop()
+
+    def _close_log_writer(self):
+        """关闭当前日志文件，避免串口会话之间复用旧路径。"""
+        self._log_enabled = False
+        self.log_file_path = None
+        self.log_writer.close()
     def _send_settings_changed(self, settings):
         if not settings["loop_send"]:
             self._loop_send_cancelled = True
@@ -99,9 +108,9 @@ class WorkTab(QWidget):
             if old_mode == "TEXT" and new_mode == "HEX":
                 # QPlainTextEdit 将编辑器中的换行统一表示为 "\n"；串口文本
                 # 发送与 TEXT -> HEX 转换均使用 Windows 风格的 CRLF。
-                converted = SendDataUtils.normalize_text_newlines(text).encode("utf-8").hex(" ").upper()
+                converted = SendDataUtils.text_to_hex(text)
             elif old_mode == "HEX" and new_mode == "TEXT":
-                converted = bytes.fromhex(text.replace(" ", "").replace("\n", "").replace("\r", "")).decode("utf-8", errors="ignore")
+                converted = SendDataUtils.hex_to_text(text)
             else: return
         except ValueError:
             return
@@ -111,10 +120,18 @@ class WorkTab(QWidget):
         if self.serial_manager.is_open(): self._close_connection(); return
         port = self.serial_settings.get_current_port()
         if not port: self._append_system("[错误] 请先选择串口\n", "error"); return
+        self._reset_receive_session()
         self.connect_btn.setEnabled(False); self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
 
     def _close_connection(self):
-        self._stop_loop_send(); self.reconnect_timer.stop(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
+        self._stop_loop_send(); self.reconnect_timer.stop(); self._reset_receive_session(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
+
+    def _reset_receive_session(self):
+        """清除会话残留接收状态，不清空用户可见的历史内容。"""
+        self.serial_manager.clear_pending()
+        self.receive_decoder.reset()
+        self.receive_text_segmenter.reset()
+        self.receive_log_formatter.reset()
 
     def _stop_loop_send(self):
         self._loop_send_cancelled = True
@@ -134,7 +151,7 @@ class WorkTab(QWidget):
             parent = parent.parentWidget()
 
     def _on_disconnected(self):
-        self._stop_loop_send(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
+        self._stop_loop_send(); self._reset_receive_session(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
         if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
 
     def _schedule_reconnect(self):
@@ -149,63 +166,37 @@ class WorkTab(QWidget):
         else:
             self._append_system("[警告] 自动重连失败，稍后重试\n", "warning"); self._schedule_reconnect()
 
-    def _format_received(self, data):
-        settings = self.receive_settings.get_settings()
-        if settings["mode"] == "HEX":
-            # 与 wx 版一致：HEX 数据保持连续显示，不在每次接收后强制换行。
-            return data.hex(" ").upper() + (" " if data else "")
-
-        encoding = settings["encoding"].replace("-", "").lower()
-        encodings = [encoding]
-        if encoding == "ascii":
-            # wx 版在 ASCII 解码失败后会尝试常见中文编码。
-            encodings.extend(("gb2312", "gbk"))
-        text = None
-        for candidate in encodings:
-            try:
-                text = data.decode(candidate)
-                break
-            except (LookupError, UnicodeDecodeError):
-                continue
-        if text is None:
-            text = str(data)
-
-        # 统一换行并忽略纯空白行，保持与 wx 版接收区一致。
-        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-        return "".join(segment for segment in normalized.splitlines(True) if segment.strip())
-
     def _flush_receive(self):
         data, dropped = self.serial_manager.drain(self.MAX_FLUSH_BYTES)
         if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True, level="warning")
+        log_dropped = self.log_writer.take_dropped_bytes()
+        if log_dropped: self._append_text(f"[警告] 日志写入缓冲已满，丢弃 {log_dropped} 字节\n", force=True, level="warning", write_log=False)
         if not data: return
         max_blocks = self.config_manager.get_global_settings().get("receive_buffer_size", 10000)
         if self.receive_text.document().maximumBlockCount() != max_blocks:
             self.receive_text.document().setMaximumBlockCount(max_blocks)
         self.rx_count += len(data); self._update_counts()
-        text = self._format_received(data)
-        if self.receive_settings.get_settings()["mode"] == "TEXT":
+        settings = self.receive_settings.get_settings()
+        if settings["mode"] == "TEXT":
             # wx 版按保留换行的文本段逐段追加；日志模式下每个新行会获得独立时间戳。
-            for segment in text.splitlines(True):
+            text = self.receive_decoder.decode(data, settings["encoding"])
+            for segment in self.receive_text_segmenter.iter_segments(text):
                 self._append_text(segment)
         else:
-            self._append_text(text)
+            self.receive_decoder.reset()
+            self.receive_text_segmenter.reset()
+            self._append_text(ReceiveDataUtils.format_hex(data))
 
     def _append_system(self, text, level="info"): self._append_text(text, force=True, level=level)
 
-    def _append_text(self, text, force=False, level="normal"):
+    def _append_text(self, text, force=False, level="normal", write_log=True):
         if not text: return
         settings = self.receive_settings.get_settings()
-        now = datetime.now()
-        if settings["log_mode"]:
-            needs_timestamp = self._last_log_ended or self._last_log_time is None or (now - self._last_log_time).total_seconds() > .1
-            if needs_timestamp:
-                timestamp = now.strftime("[%H:%M:%S.%f")[:-3] + "] "
-                text = ("" if self._last_log_ended else "\n") + timestamp + text
+        text = self.receive_log_formatter.format(text, settings["log_mode"])
         if force and self.receive_text.document().characterCount() > 1 and not self.receive_text.toPlainText().endswith("\n") and not text.startswith("\n"):
             # wx 版会在系统消息前补换行，避免与未结束的接收数据粘连。
             text = "\n" + text
-        self._last_log_time, self._last_log_ended = now, text.endswith("\n")
-        if self._log_enabled: self.log_writer.write(text)
+        if write_log and self._log_enabled: self.log_writer.write(text)
         cursor = self.receive_text.textCursor(); cursor.movePosition(QTextCursor.End); cursor.insertText(text, self._receive_text_format(level))
         excess = self.receive_text.document().characterCount() - self.MAX_DISPLAY_CHARS
         if excess > 0:
@@ -259,22 +250,11 @@ class WorkTab(QWidget):
         encoding = self.receive_settings.get_settings()["encoding"]
         try:
             if mode == "HEX":
-                byte_count = len(bytes.fromhex(data.replace(" ", "").replace("\n", "")))
+                byte_count = len(SendDataUtils.parse_hex(data))
             else:
-                send_data = SendDataUtils.normalize_text_newlines(data)
-                encodings = [encoding]
-                if encoding == "ASCII": encodings.extend(("GB2312", "GBK"))
-                for candidate in encodings:
-                    try:
-                        byte_count = len(send_data.encode(candidate.replace("-", "").lower()))
-                        encoding = candidate
-                        break
-                    except (LookupError, UnicodeEncodeError):
-                        continue
-                else:
-                    self._append_system("[错误] 无法使用任何编码发送数据\n", "error")
-                    return
-        except ValueError: self._append_system("[错误] 发送内容无效\n", "error"); return
+                send_data, encoding, encoded = SendDataUtils.encode_text(data, encoding)
+                byte_count = len(encoded)
+        except (ValueError, UnicodeEncodeError): self._append_system("[错误] 发送内容无效\n", "error"); return
         self._send_in_flight = True; self._pending_send = (data, mode, byte_count, add_to_history, settings, override_mode)
         self.serial_manager.send_async(send_data if mode == "TEXT" else data, mode, encoding)
 
@@ -289,7 +269,7 @@ class WorkTab(QWidget):
             else:
                 self._set_connection_state(False); self._append_system("[错误] 无法打开串口\n", "error")
                 if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
-        elif operation == "close": self.connect_btn.setEnabled(True); self._set_connection_state(False); self._append_system("[信息] 串口已关闭\n", "info")
+        elif operation == "close": self._reset_receive_session(); self.connect_btn.setEnabled(True); self._set_connection_state(False); self._append_system("[信息] 串口已关闭\n", "info")
         elif operation == "send":
             self._send_in_flight = False
             if not self._pending_send: return
@@ -311,11 +291,11 @@ class WorkTab(QWidget):
             self._append_system(f"[错误] 创建日志文件失败: {error}\n", "error")
             return False
         self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename); self._append_system(f"[信息] 日志文件: {filename}\n", "info"); return self._log_enabled
-    def _clear_receive(self): self.receive_text.clear(); self._last_log_ended = True; self._last_log_time = None
+    def _clear_receive(self): self.receive_text.clear(); self.receive_decoder.reset(); self.receive_text_segmenter.reset(); self.receive_log_formatter.reset()
     def _reset_counts(self): self.rx_count = self.tx_count = 0; self._update_counts()
     def _update_counts(self): self.count_label.setText(f"RX: {self.rx_count}  TX: {self.tx_count}")
     def apply_theme(self, theme_manager, font_size=9):
         self._theme_manager = theme_manager
         self.receive_text.setFont(QFont("Consolas", font_size)); self.send_text.setFont(QFont("Consolas", font_size)); self._refresh_receive_colors()
     def cleanup(self):
-        self.flush_timer.stop(); self.loop_timer.stop(); self.reconnect_timer.stop(); self.serial_manager.close_async(); self._log_enabled = False; self.log_writer.stop()
+        self.flush_timer.stop(); self.loop_timer.stop(); self.reconnect_timer.stop(); self._reset_receive_session(); self.serial_manager.close_async(); self._log_enabled = False; self.log_writer.stop()
