@@ -391,6 +391,7 @@ class MainWindow(wx.Frame):
         # 清理工作面板
         if hasattr(self, 'work_panel'):
             self.work_panel.cleanup()
+
+        self.config_manager.flush_config()
         
         self.Destroy()
-

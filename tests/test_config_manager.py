@@ -4,6 +4,7 @@ import io
 import json
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -124,4 +125,15 @@ class ConfigManagerTests(unittest.TestCase):
                 manager.set_theme("light")
             with patch.object(manager, "_write_config") as write_config:
                 self.assertTrue(manager.save_config())
+                write_config.assert_called_once_with(manager.config)
+
+    def test_send_history_write_is_throttled_and_flushed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ConfigManager(str(Path(directory) / "config.json"))
+            manager._last_config_write_at = time.monotonic()
+            with patch.object(manager, "_write_config") as write_config:
+                manager.add_send_history("高频发送", "TEXT")
+                write_config.assert_not_called()
+
+                self.assertTrue(manager.flush_config())
                 write_config.assert_called_once_with(manager.config)

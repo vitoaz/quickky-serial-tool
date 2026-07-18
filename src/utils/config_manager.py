@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+import time
 from copy import deepcopy
 from datetime import datetime
 
@@ -18,11 +19,13 @@ class ConfigManager:
     ENCODINGS = {"UTF-8", "ASCII"}
     LINE_ENDINGS = {"CR", "LF", "CRLF"}
     THEMES = {"light", "dark"}
+    HISTORY_SAVE_INTERVAL_SECONDS = 2.0
 
     def __init__(self, config_file="config.json"):
         self.config_file = os.path.join(get_base_path(), config_file)
         self.config = self._load_config()
         self._last_saved_config = deepcopy(self.config)
+        self._last_config_write_at = 0.0
 
     def _get_default_config(self):
         return {
@@ -249,13 +252,16 @@ class ConfigManager:
             # 损坏的运行配置可由用户修复；不要用默认值覆盖原文件。
             return self._get_default_config()
 
-    def save_config(self):
-        """仅在配置实际变化时执行原子写入；失败后保留旧快照以便下次重试。"""
+    def save_config(self, force=False, min_interval=0.0):
+        """仅在配置变化后写入；可对高频调用限制最小写入间隔。"""
         if self.config == self._last_saved_config:
+            return True
+        if not force and min_interval > 0 and time.monotonic() - self._last_config_write_at < min_interval:
             return True
         try:
             self._write_config(self.config)
             self._last_saved_config = deepcopy(self.config)
+            self._last_config_write_at = time.monotonic()
             return True
         except OSError as error:
             print(f"保存配置文件失败: {error}")
@@ -321,6 +327,7 @@ class ConfigManager:
             self._write_config(config)
             self.config = config
             self._last_saved_config = deepcopy(config)
+            self._last_config_write_at = time.monotonic()
             return True
         except (OSError, ValueError, json.JSONDecodeError, RecursionError) as error:
             print(f"导入配置失败: {error}")
@@ -342,7 +349,11 @@ class ConfigManager:
             history.insert(0, {"data": data, "mode": mode, "time": current_time})
         max_history = self.get_global_settings()["send_history_max"]
         del history[max_history:]
-        self.save_config()
+        self.save_config(min_interval=self.HISTORY_SAVE_INTERVAL_SECONDS)
+
+    def flush_config(self):
+        """强制写入尚未持久化的配置，供窗口退出时调用。"""
+        return self.save_config(force=True)
 
     def get_send_history(self):
         return self.config["send_history"]

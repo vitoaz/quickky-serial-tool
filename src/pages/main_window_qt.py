@@ -65,4 +65,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if not self.work_panel.cleanup():
             QMessageBox.warning(self, "日志写入未完成", "日志文件写入超过 1 秒仍未完成，退出后剩余日志可能未写入。")
+        if not self.config_manager.flush_config():
+            QMessageBox.warning(self, "配置保存失败", "退出前无法保存最新配置。")
         event.accept()
