@@ -46,6 +46,7 @@ docs/guides/     Python 开发与版本发布指南
 - `src/utils/config_manager.py`：读取、更新、导入导出并持久化运行目录中的 `config.json`。
 - `src/utils/serial_manager.py`：封装 pyserial 打开、关闭、收发、接收线程和断线检测。
 - `src/utils/hex_utils.py`：提供 HEX 数据转换与校验。
+- `src/utils/send_data_utils.py`：统一将文本发送数据的逻辑换行规范化为 `\r\n`。
 - `scripts/release_gitee.py`：读取 `.gitee` 与用户目录令牌，推送全部本地分支和标签到 Gitee，创建或补齐 Release 并上传 ZIP 发布包。
 - `VERSION`：保存当前版本号；版本生成和发布包脚本均从此文件读取版本。
 
@@ -83,7 +84,7 @@ config
 1. 用户在工作 Tab 中选择串口和通信参数，触发连接操作。
 2. `SerialManagerQt` 在后台执行串口打开、关闭、发送和接收；接收数据进入有最大字节数限制的队列。
 3. `WorkTab` 每 25ms 最多消费 256 KiB 数据，并批量写入 `QPlainTextEdit`；接收区禁用自动换行并限制最大行数。
-4. 用户发送数据时，工作 Tab 按 TEXT 或 HEX 设置转换后写入串口；成功发送的数据写入发送历史。
+4. 用户通过发送框或快捷指令发送数据时，工作 Tab 将 TEXT 编辑器换行规范化为 `\r\n`，并在 TEXT 与 HEX 切换时保留对应换行字节后写入串口；新增或编辑的 TEXT 快捷指令也以 `\r\n` 保存；成功发送的数据写入发送历史。
 5. 日志文件由后台日志写入器保持打开直到会话清理，避免在接收路径执行文件 I/O。
 
 ### 配置与主题

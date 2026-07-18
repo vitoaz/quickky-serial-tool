@@ -13,6 +13,7 @@ from components.send_settings_panel_qt import SendSettingsPanel
 from components.serial_settings_panel_qt import SerialSettingsPanel
 from utils.log_writer_qt import LogWriterQt
 from utils.serial_manager_qt import SerialManagerQt
+from utils.send_data_utils import SendDataUtils
 
 
 class WorkTab(QWidget):
@@ -92,11 +93,13 @@ class WorkTab(QWidget):
         elif settings["loop_send"] and self.loop_timer.isActive():
             self.loop_timer.start(settings["loop_period_ms"])
     def _on_send_mode_changed(self, old_mode, new_mode):
-        text = self.send_text.toPlainText().strip()
+        text = self.send_text.toPlainText()
         if not text: return
         try:
             if old_mode == "TEXT" and new_mode == "HEX":
-                converted = text.encode("utf-8").hex(" ").upper()
+                # QPlainTextEdit 将编辑器中的换行统一表示为 "\n"；串口文本
+                # 发送与 TEXT -> HEX 转换均使用 Windows 风格的 CRLF。
+                converted = SendDataUtils.normalize_text_newlines(text).encode("utf-8").hex(" ").upper()
             elif old_mode == "HEX" and new_mode == "TEXT":
                 converted = bytes.fromhex(text.replace(" ", "").replace("\n", "").replace("\r", "")).decode("utf-8", errors="ignore")
             else: return
@@ -258,11 +261,12 @@ class WorkTab(QWidget):
             if mode == "HEX":
                 byte_count = len(bytes.fromhex(data.replace(" ", "").replace("\n", "")))
             else:
+                send_data = SendDataUtils.normalize_text_newlines(data)
                 encodings = [encoding]
                 if encoding == "ASCII": encodings.extend(("GB2312", "GBK"))
                 for candidate in encodings:
                     try:
-                        byte_count = len(data.encode(candidate.replace("-", "").lower()))
+                        byte_count = len(send_data.encode(candidate.replace("-", "").lower()))
                         encoding = candidate
                         break
                     except (LookupError, UnicodeEncodeError):
@@ -272,7 +276,7 @@ class WorkTab(QWidget):
                     return
         except ValueError: self._append_system("[错误] 发送内容无效\n", "error"); return
         self._send_in_flight = True; self._pending_send = (data, mode, byte_count, add_to_history, settings, override_mode)
-        self.serial_manager.send_async(data, mode, encoding)
+        self.serial_manager.send_async(send_data if mode == "TEXT" else data, mode, encoding)
 
     def send_data(self, data, mode): self.send_text.setPlainText(data); self._send_data(mode, add_to_history=False)
     def _save_send_draft(self):
