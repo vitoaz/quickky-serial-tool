@@ -77,6 +77,8 @@ class ConfigManagerTests(unittest.TestCase):
             }), encoding="utf-8")
             manager = ConfigManager(str(config_path))
             self.assertEqual(manager.get_last_port(), "COM1")
+            manager.set_last_log_directory(str(Path(directory)))
+            self.assertEqual(manager.get_last_log_directory(), str(Path(directory)))
             self.assertEqual(manager.get_port_config("COM1")["serial_settings"]["baudrate"], 115200)
             self.assertEqual(manager.get_global_settings()["fontSize"], 9)
             self.assertEqual(manager.get_send_history(), [{"data": "legacy", "mode": "TEXT", "time": ""}])
@@ -295,6 +297,22 @@ class WorkTabBehaviorTests(unittest.TestCase):
         tab.connect_btn.setEnabled.assert_called_once_with(True)
         tab._set_connection_state.assert_called_once_with(False)
         tab._append_system.assert_called_once_with("[错误] 关闭串口失败或超时\n", "error")
+
+    def test_log_file_dialog_reuses_last_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            selected_file = str(Path(directory) / "serial.log")
+            tab = WorkTab.__new__(WorkTab)
+            tab.serial_settings = Mock(get_current_port=Mock(return_value="COM1"))
+            tab.config_manager = Mock(get_last_log_directory=Mock(return_value=directory))
+            tab.log_writer = Mock(open=Mock(return_value=True))
+            tab._append_system = Mock()
+
+            with patch("components.work_tab_qt.QFileDialog.getSaveFileName", return_value=(selected_file, "")) as dialog:
+                self.assertTrue(WorkTab._choose_log_file(tab))
+
+            self.assertTrue(dialog.call_args.args[2].startswith(directory))
+            tab.config_manager.set_last_log_directory.assert_called_once_with(directory)
+            tab.log_writer.open.assert_called_once_with(selected_file)
 
 
 

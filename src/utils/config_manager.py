@@ -25,6 +25,7 @@ class ConfigManager:
         return {
             "last_port_main": "",
             "last_port_secondary": "",
+            "last_log_directory": "",
             "port_configs": {},
             "quick_command_groups": [],
             "send_history": [],
@@ -179,7 +180,7 @@ class ConfigManager:
         if not isinstance(raw, dict):
             raise ValueError("配置根节点必须是 JSON 对象")
         config = self._get_default_config()
-        for key in ("last_port_main", "last_port_secondary"):
+        for key in ("last_port_main", "last_port_secondary", "last_log_directory"):
             if isinstance(raw.get(key), str):
                 config[key] = raw[key]
         for key in ("command_panel_visible", "dual_panel_mode"):
@@ -241,6 +242,15 @@ class ConfigManager:
 
     def set_last_port(self, port, panel="main"):
         self.config["last_port_secondary" if panel == "secondary" else "last_port_main"] = port
+        self.save_config()
+
+    def get_last_log_directory(self):
+        """获取上次选择日志文件时所在的目录。"""
+        return self.config["last_log_directory"]
+
+    def set_last_log_directory(self, directory):
+        """保存日志文件选择目录，不保存具体日志文件路径。"""
+        self.config["last_log_directory"] = directory if isinstance(directory, str) else ""
         self.save_config()
 
     def get_port_config(self, port):

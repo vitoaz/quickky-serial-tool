@@ -306,7 +306,10 @@ class WorkTab(QWidget):
                 if not override_mode and settings["loop_send"] and not self._loop_send_cancelled and not self.loop_timer.isActive(): self.loop_timer.start(settings["loop_period_ms"]); self.send_btn.setText("取消发送")
             else: self._stop_loop_send(); self._append_system("[错误] 发送失败\n", "error")
     def _choose_log_file(self):
-        filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log", "日志文件 (*.log);;文本文件 (*.txt);;所有文件 (*.*)")
+        suggested_name = f"{self.serial_settings.get_current_port()}-{datetime.now():%Y%m%d%H%M%S}.log"
+        last_directory = self.config_manager.get_last_log_directory()
+        initial_path = str(Path(last_directory) / suggested_name) if last_directory else suggested_name
+        filename, _ = QFileDialog.getSaveFileName(self, "保存日志文件", initial_path, "日志文件 (*.log);;文本文件 (*.txt);;所有文件 (*.*)")
         if not filename: return False
         try:
             # 与 wx 版一致：选择后立即验证文件可创建，失败时不启用保存日志。
@@ -315,6 +318,7 @@ class WorkTab(QWidget):
         except OSError as error:
             self._append_system(f"[错误] 创建日志文件失败: {error}\n", "error")
             return False
+        self.config_manager.set_last_log_directory(str(Path(filename).parent))
         self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename); self._append_system(f"[信息] 日志文件: {filename}\n", "info"); return self._log_enabled
     def _clear_receive(self): self.receive_text.clear(); self.receive_decoder.reset(); self.receive_text_segmenter.reset(); self.receive_log_formatter.reset()
     def _reset_counts(self): self.rx_count = self.tx_count = 0; self._update_counts()
