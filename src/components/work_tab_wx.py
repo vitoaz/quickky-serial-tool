@@ -17,6 +17,7 @@ from .send_settings_panel_wx import SendSettingsPanel
 from utils.serial_manager import SerialManager
 from utils.hex_utils import HexUtils
 from utils.custom_controls_wx import ThemedButton
+from utils.log_writer import LogWriter
 
 
 class WorkTab(wx.Panel):
@@ -46,6 +47,7 @@ class WorkTab(wx.Panel):
         self.panel_type = panel_type
         self.serial_manager = SerialManager()
         self.log_file_path = None
+        self.log_writer = LogWriter()
         self.loop_send_timer = None
         self.is_loop_sending = False  # 循环发送状态标志
         self.theme_manager = None
@@ -384,6 +386,9 @@ class WorkTab(wx.Panel):
         
         if old_auto_reconnect and not self.auto_reconnect_enabled:
             self._stop_auto_reconnect()
+        if not settings['save_log']:
+            self.log_file_path = None
+            self.log_writer.close()
     
     def _on_save_log_checked(self):
         """保存日志文件勾选时的回调"""
@@ -748,13 +753,9 @@ class WorkTab(wx.Panel):
             self.last_log_line_ended = text.endswith('\n')
             self.last_log_append_time = datetime.now()
         
-        # 保存到日志文件（立即写入，不等待队列）
+        # 保存到日志文件（后台有界队列写入，不阻塞接收处理）
         if settings['save_log'] and self.log_file_path:
-            try:
-                with open(self.log_file_path, 'a', encoding='utf-8') as f:
-                    f.write(display_text)
-            except Exception as e:
-                print(f"写入日志文件失败: {e}")
+            self.log_writer.write(display_text)
         
         # 将数据加入队列，等待定时器刷新到界面
         self.receive_queue.put((display_text, level))
@@ -842,6 +843,7 @@ class WorkTab(wx.Panel):
                 with open(file_path, 'a', encoding='utf-8') as f:
                     pass
                 self.log_file_path = file_path
+                self.log_writer.open(file_path)
                 self._append_receive(f'[信息] 日志文件: {file_path}\n', 'info')
                 dlg.Destroy()
                 return True
@@ -929,6 +931,8 @@ class WorkTab(wx.Panel):
             
             if self.serial_manager:
                 self.serial_manager.close()
+
+            self.log_writer.stop()
             
             # 重置界面状态
             self._update_connection_state(False)
@@ -1060,4 +1064,3 @@ class WorkTab(wx.Panel):
         
         except Exception as e:
             print(f"应用主题到WorkTab失败: {e}")
-

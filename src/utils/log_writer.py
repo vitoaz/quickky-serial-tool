@@ -1,12 +1,12 @@
-"""Qt 串口会话的异步、有界日志写入器。"""
+"""异步、有界日志写入器。"""
 
 import threading
 from collections import deque
 from pathlib import Path
 
 
-class LogWriterQt:
-    """将日志文件 I/O 与 Qt UI 线程分离，并限制待写入日志数量。"""
+class LogWriter:
+    """在后台线程写入日志文件，并限制待写入日志数量。"""
 
     def __init__(self, max_pending_bytes=4 * 1024 * 1024):
         self._queue = deque()

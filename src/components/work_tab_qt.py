@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QPlainTextEdit,
 from components.receive_settings_panel_qt import ReceiveSettingsPanel
 from components.send_settings_panel_qt import SendSettingsPanel
 from components.serial_settings_panel_qt import SerialSettingsPanel
-from utils.log_writer_qt import LogWriterQt
+from utils.log_writer import LogWriter
 from utils.serial_manager_qt import SerialManagerQt
 from utils.send_data_utils import SendDataUtils
 
@@ -31,7 +31,7 @@ class WorkTab(QWidget):
         self.is_first_tab = is_first_tab
         self.serial_manager = SerialManagerQt(); self.serial_manager.disconnected.connect(self._on_disconnected)
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
-        self.log_writer = LogWriterQt(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
+        self.log_writer = LogWriter(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
         self._theme_manager = None
         self._last_log_time = None; self._last_log_ended = True; self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)

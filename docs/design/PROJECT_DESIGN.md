@@ -41,8 +41,8 @@ docs/guides/     Python 开发与版本发布指南
 - `src/components/*_settings_panel_qt.py`：分别编辑串口、接收和发送设置。
 - `src/components/command_panel_qt.py`、`quick_commands_panel_qt.py`、`quick_command_dialog_qt.py`、`send_history_panel_qt.py`：提供快捷指令和发送历史功能。
 - `src/utils/serial_manager_qt.py`：将串口打开、关闭、发送和后台接收适配为 Qt 可用的异步操作与有界待显示缓冲。
-- `src/utils/log_writer_qt.py`：在后台线程批量写入有界日志队列，避免日志 I/O 阻塞界面线程。
-- `src/utils/theme_manager_qt.py` 与 `custom_controls_qt.py`：加载主题并提供 Qt 样式与通用控件。
+- `src/utils/log_writer.py`：在后台线程批量写入有界日志队列，避免日志 I/O 阻塞界面线程。
+- `src/utils/theme_manager_qt.py`：加载主题并生成 Qt 样式表。
 - `src/utils/config_manager.py`：读取、更新、导入导出并持久化运行目录中的 `config.json`。
 - `src/utils/serial_manager.py`：封装 pyserial 打开、关闭、收发、接收线程和断线检测。
 - `src/utils/hex_utils.py`：提供 HEX 数据转换与校验。
