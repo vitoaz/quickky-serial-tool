@@ -1,7 +1,7 @@
 """Qt 多 Tab 工作栏。"""
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import QFrame, QMenu, QStyle, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QMenu, QMessageBox, QStyle, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget
 
 from .work_tab_qt import WorkTab
 
@@ -9,7 +9,7 @@ from .work_tab_qt import WorkTab
 class WorkColumn(QWidget):
     def __init__(self, config_manager, theme_manager=None, panel_type="main", on_column_activated=None, on_tab_data_sent=None, parent=None):
         super().__init__(parent); self.config_manager, self.theme_manager, self.panel_type, self.on_column_activated, self.on_tab_data_sent, self.is_active = config_manager, theme_manager, panel_type, on_column_activated, on_tab_data_sent, False
-        self.notebook = QTabWidget(); self.notebook.setTabsClosable(False); self.notebook.currentChanged.connect(self._on_changed); self.notebook.tabBar().tabBarDoubleClicked.connect(self._close_tab_on_double_click); self.notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.notebook.tabBar().customContextMenuRequested.connect(self._tab_menu)
+        self.notebook = QTabWidget(); self.notebook.setTabsClosable(False); self.notebook.currentChanged.connect(self._on_changed); self.notebook.tabBar().tabBarClicked.connect(self._on_tab_bar_clicked); self.notebook.tabBar().tabBarDoubleClicked.connect(self._close_tab_on_double_click); self.notebook.tabBar().setContextMenuPolicy(Qt.CustomContextMenu); self.notebook.tabBar().customContextMenuRequested.connect(self._tab_menu)
         self._add_tab_page = QWidget(self.notebook); self.notebook.blockSignals(True); self._add_tab_index = self.notebook.addTab(self._add_tab_page, "+"); self.notebook.blockSignals(False)
         for side in (QTabBar.LeftSide, QTabBar.RightSide): self.notebook.tabBar().setTabButton(self._add_tab_index, side, None)
         self.top_border = QFrame(); self.top_border.setFixedHeight(3)
@@ -33,11 +33,17 @@ class WorkColumn(QWidget):
     def _on_changed(self, _index):
         if self._is_add_tab(_index): self._add_new_tab(); return
         if self.on_column_activated: self.on_column_activated(self)
+    def _on_tab_bar_clicked(self, _index):
+        """已选中的 Tab 不会触发 currentChanged，仍需切换活动工作栏。"""
+        if self.on_column_activated: self.on_column_activated(self)
     def _close_tab(self, index):
         if self._is_add_tab(index) or len(self.get_all_tabs()) <= 1: return
         if self.notebook.currentIndex() == index:
             self.notebook.setCurrentIndex(index - 1 if index > 0 else index + 1)
-        tab = self.notebook.widget(index); tab.cleanup(); self.notebook.removeTab(index); tab.deleteLater(); self._refresh_close_buttons()
+        tab = self.notebook.widget(index)
+        if not tab.cleanup():
+            QMessageBox.warning(self, "日志写入未完成", "日志文件写入超过 1 秒仍未完成，关闭标签后剩余日志可能未写入。")
+        self.notebook.removeTab(index); tab.deleteLater(); self._refresh_close_buttons()
     def _close_tab_on_double_click(self, index):
         if index >= 0: self._close_tab(index)
     def _tab_menu(self, pos):
@@ -57,4 +63,7 @@ class WorkColumn(QWidget):
         for tab in self.get_all_tabs(): tab.apply_theme(theme_manager, self.config_manager.get_font_size())
         self.set_active(self.is_active)
     def cleanup(self):
-        for tab in self.get_all_tabs(): tab.cleanup()
+        results = [tab.cleanup() for tab in self.get_all_tabs()]
+        return all(results)
+    def suspend(self):
+        for tab in self.get_all_tabs(): tab.suspend()

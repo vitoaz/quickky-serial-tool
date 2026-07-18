@@ -53,7 +53,11 @@ class QuickCommandsPanel(QWidget):
         layout = QVBoxLayout(self); layout.setContentsMargins(0, 0, 0, 0); layout.addWidget(self.group_notebook); self._load_groups()
     def _groups(self): return self.config_manager.get_quick_command_groups()
     def _load_groups(self):
-        self.group_notebook.clear(); groups = self._groups()
+        while self.group_notebook.count():
+            page = self.group_notebook.widget(0)
+            self.group_notebook.removeTab(0)
+            page.deleteLater()
+        groups = self._groups()
         if not groups: groups = [{"name": "默认", "commands": []}]; self.config_manager.set_quick_command_groups(groups)
         for index, group in enumerate(groups): self._create_group_tab(index, group)
     def _create_group_tab(self, index, group):
@@ -65,8 +69,14 @@ class QuickCommandsPanel(QWidget):
             row = table.rowCount(); table.insertRow(row); data = str(command.get("data", command.get("command", ""))); prefix = "[H] " if command.get("mode") == "HEX" else "[T] "; name_item = QTableWidgetItem(command.get("name", "")); name_item.setData(Qt.UserRole, command); table.setItem(row, 0, name_item); table.setItem(row, 1, QTableWidgetItem(prefix + data.replace("\n", "\\n").replace("\r", "\\r")))
     def _current_index(self): return self.group_notebook.currentIndex()
     def _current_table(self): return self.group_notebook.currentWidget()
-    def _save_group_order(self):
-        old = {group["name"]: group for group in self._groups()}; self.config_manager.set_quick_command_groups([old[self.group_notebook.tabText(i)] for i in range(self.group_notebook.count())])
+    def _save_group_order(self, source, target):
+        """按页签索引移动，允许历史配置中存在同名分组。"""
+        groups = self._groups()
+        if not (0 <= source < len(groups) and 0 <= target < len(groups)):
+            return
+        group = groups.pop(source)
+        groups.insert(target, group)
+        self.config_manager.set_quick_command_groups(groups)
     def _save_command_order(self, table):
         index = self.group_notebook.indexOf(table)
         if index < 0: return

@@ -54,7 +54,6 @@ class SerialManagerQt(QObject):
                 chunks.append(chunk)
                 total += len(chunk)
                 self._pending_bytes -= len(chunk)
-        with self._lock:
             dropped, self._dropped_bytes = self._dropped_bytes, 0
         return b"".join(chunks), dropped
 

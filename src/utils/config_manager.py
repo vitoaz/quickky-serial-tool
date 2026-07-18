@@ -2,6 +2,7 @@
 
 import json
 import os
+import tempfile
 from datetime import datetime
 
 from .file_utils import get_base_path
@@ -209,12 +210,27 @@ class ConfigManager:
                 if isinstance(port, str) and port
             }
         config["quick_command_groups"] = self._normalize_quick_command_groups(raw.get("quick_command_groups", []))
-        config["send_history"] = self._normalize_send_history(raw.get("send_history", []))
+        history = self._normalize_send_history(raw.get("send_history", []))
+        config["send_history"] = history[:config["global_settings"]["send_history_max"]]
         return config
 
     def _write_config(self, config):
-        with open(self.config_file, "w", encoding="utf-8") as stream:
-            json.dump(config, stream, indent=2, ensure_ascii=False)
+        directory = os.path.dirname(os.path.abspath(self.config_file))
+        file_descriptor, temporary_path = tempfile.mkstemp(
+            prefix=".config-", suffix=".tmp", dir=directory, text=True,
+        )
+        try:
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as stream:
+                json.dump(config, stream, indent=2, ensure_ascii=False)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary_path, self.config_file)
+        except OSError:
+            try:
+                os.unlink(temporary_path)
+            except OSError:
+                pass
+            raise
 
     def _load_config(self):
         if not os.path.exists(self.config_file):
@@ -226,7 +242,7 @@ class ConfigManager:
             if config != raw:
                 self._write_config(config)
             return config
-        except (OSError, ValueError, json.JSONDecodeError) as error:
+        except (OSError, ValueError, json.JSONDecodeError, RecursionError) as error:
             print(f"加载配置文件失败: {error}")
             # 损坏的运行配置可由用户修复；不要用默认值覆盖原文件。
             return self._get_default_config()
@@ -234,8 +250,10 @@ class ConfigManager:
     def save_config(self):
         try:
             self._write_config(self.config)
+            return True
         except OSError as error:
             print(f"保存配置文件失败: {error}")
+            return False
 
     def get_last_port(self, panel="main"):
         return self.config["last_port_secondary" if panel == "secondary" else "last_port_main"]
@@ -293,10 +311,11 @@ class ConfigManager:
         try:
             with open(file_path, "r", encoding="utf-8") as stream:
                 raw = json.load(stream)
-            self.config = self._normalize_config(raw)
-            self.save_config()
+            config = self._normalize_config(raw)
+            self._write_config(config)
+            self.config = config
             return True
-        except (OSError, ValueError, json.JSONDecodeError) as error:
+        except (OSError, ValueError, json.JSONDecodeError, RecursionError) as error:
             print(f"导入配置失败: {error}")
             return False
 
@@ -314,8 +333,8 @@ class ConfigManager:
             history[0]["time"] = current_time
         else:
             history.insert(0, {"data": data, "mode": mode, "time": current_time})
-            max_history = self.get_global_settings()["send_history_max"]
-            del history[max_history:]
+        max_history = self.get_global_settings()["send_history_max"]
+        del history[max_history:]
         self.save_config()
 
     def get_send_history(self):

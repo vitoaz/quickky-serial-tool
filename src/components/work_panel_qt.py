@@ -23,7 +23,7 @@ class WorkPanel(QWidget):
         self.dual_panel_mode = enabled
         self.secondary_column.setVisible(enabled)
         if not enabled:
-            self.secondary_column.cleanup()
+            self.secondary_column.suspend()
             self.active_column = self.main_column
         self.config_manager.set_dual_panel_mode(enabled)
         self._update_column_highlight()
@@ -34,4 +34,7 @@ class WorkPanel(QWidget):
         if not tab: return False
         tab.send_data(data, mode); return True
     def apply_theme(self): self.main_column.apply_theme(self.theme_manager); self.secondary_column.apply_theme(self.theme_manager); self._update_column_highlight()
-    def cleanup(self): self.main_column.cleanup(); self.secondary_column.cleanup()
+    def cleanup(self):
+        main_completed = self.main_column.cleanup()
+        secondary_completed = self.secondary_column.cleanup()
+        return main_completed and secondary_completed

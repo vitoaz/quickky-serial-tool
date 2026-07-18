@@ -32,9 +32,9 @@ class WorkTab(QWidget):
         self.is_first_tab = is_first_tab
         self.serial_manager = SerialManagerQt(); self.serial_manager.disconnected.connect(self._on_disconnected)
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
-        self.log_writer = LogWriter(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
+        self.log_writer = LogWriter(); self.log_file_path = None; self._log_enabled = False; self._log_generation = 0; self.rx_count = self.tx_count = 0
         self._theme_manager = None
-        self.receive_decoder = ReceiveTextDecoder(); self.receive_text_segmenter = ReceiveTextSegmenter(); self.receive_log_formatter = ReceiveLogFormatter(); self._send_in_flight = False; self._connection_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
+        self.receive_decoder = ReceiveTextDecoder(); self.receive_text_segmenter = ReceiveTextSegmenter(); self.receive_log_formatter = ReceiveLogFormatter(); self._send_in_flight = False; self._connection_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False; self._manual_close = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
         self.reconnect_timer = QTimer(self); self.reconnect_timer.setSingleShot(True); self.reconnect_timer.timeout.connect(self._try_reconnect)
@@ -94,7 +94,24 @@ class WorkTab(QWidget):
         """关闭当前日志文件，避免串口会话之间复用旧路径。"""
         self._log_enabled = False
         self.log_file_path = None
-        self.log_writer.close()
+        self.log_writer.close(self._log_generation)
+        self._log_generation += 1
+
+    def suspend(self):
+        """在隐藏副栏时关闭会话资源，但保留 Tab、定时刷新器和日志写入器供重新显示。"""
+        self._manual_close = True
+        self._stop_loop_send()
+        self.reconnect_timer.stop()
+        self._reset_receive_session()
+        self._close_log_writer()
+        checkbox = self.receive_settings.save_log_check
+        if checkbox.isChecked():
+            checkbox.setChecked(False)
+        if self.serial_manager.is_open() or self._connection_in_flight:
+            self.connect_btn.setEnabled(False)
+            self.serial_manager.close_async()
+        else:
+            self._set_connection_state(False)
     def _send_settings_changed(self, settings):
         if not settings["loop_send"]:
             self._loop_send_cancelled = True
@@ -121,6 +138,7 @@ class WorkTab(QWidget):
         if self.serial_manager.is_open(): self._close_connection(); return
         port = self.serial_settings.get_current_port()
         if not port: self._append_system("[错误] 请先选择串口\n", "error"); return
+        self._manual_close = False
         self._open_connection(port)
 
     def _open_connection(self, port):
@@ -129,7 +147,7 @@ class WorkTab(QWidget):
         self.connect_btn.setEnabled(False); self.serial_settings.set_enabled(False); self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
 
     def _close_connection(self):
-        self._stop_loop_send(); self.reconnect_timer.stop(); self._reset_receive_session(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
+        self._manual_close = True; self._stop_loop_send(); self.reconnect_timer.stop(); self._reset_receive_session(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
 
     def _reset_receive_session(self):
         """清除会话残留接收状态，不清空用户可见的历史内容。"""
@@ -157,14 +175,16 @@ class WorkTab(QWidget):
 
     def _on_disconnected(self):
         self._connection_in_flight = False; self._stop_loop_send(); self._reset_receive_session(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
-        if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
+        if not self._manual_close and self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
 
     def _schedule_reconnect(self):
+        if self._manual_close:
+            return
         interval = self.config_manager.get_global_settings().get("reconnect_interval", 5)
         self.reconnect_timer.start(int(interval * 1000))
 
     def _try_reconnect(self):
-        if not self.receive_settings.get_settings()["auto_reconnect"] or self.serial_manager.is_open() or self._connection_in_flight: return
+        if self._manual_close or not self.receive_settings.get_settings()["auto_reconnect"] or self.serial_manager.is_open() or self._connection_in_flight: return
         port = self.serial_settings.get_current_port()
         if port:
             self._open_connection(port)
@@ -177,7 +197,7 @@ class WorkTab(QWidget):
         if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True, level="warning")
         log_dropped = self.log_writer.take_dropped_bytes()
         if log_dropped: self._append_text(f"[警告] 日志写入缓冲已满，丢弃 {log_dropped} 字节\n", force=True, level="warning", write_log=False)
-        log_errors = self.log_writer.take_errors()
+        log_errors = self.log_writer.take_errors(self._log_generation)
         if log_errors:
             self._disable_logging("；".join(dict.fromkeys(log_errors)))
         if not data: return
@@ -187,10 +207,13 @@ class WorkTab(QWidget):
         self.rx_count += len(data); self._update_counts()
         settings = self.receive_settings.get_settings()
         if settings["mode"] == "TEXT":
-            # wx 版按保留换行的文本段逐段追加；日志模式下每个新行会获得独立时间戳。
+            # 日志模式按文本段格式化以保持逐行时间戳语义，再合并为一次 UI 写入。
             text = self.receive_decoder.decode(data, settings["encoding"])
-            for segment in self.receive_text_segmenter.iter_segments(text):
-                self._append_text(segment)
+            formatted = "".join(
+                self.receive_log_formatter.format(segment, settings["log_mode"])
+                for segment in self.receive_text_segmenter.iter_segments(text)
+            )
+            self._append_text(formatted, format_log=False)
         else:
             self.receive_decoder.reset()
             self.receive_text_segmenter.reset()
@@ -205,14 +228,15 @@ class WorkTab(QWidget):
         if checkbox.isChecked(): checkbox.setChecked(False)
         self._append_text(f"[错误] {error}\n", force=True, level="error", write_log=False)
 
-    def _append_text(self, text, force=False, level="normal", write_log=True):
+    def _append_text(self, text, force=False, level="normal", write_log=True, format_log=True):
         if not text: return
         settings = self.receive_settings.get_settings()
-        text = self.receive_log_formatter.format(text, settings["log_mode"])
+        if format_log:
+            text = self.receive_log_formatter.format(text, settings["log_mode"])
         if force and self.receive_text.document().characterCount() > 1 and not self.receive_text.toPlainText().endswith("\n") and not text.startswith("\n"):
             # wx 版会在系统消息前补换行，避免与未结束的接收数据粘连。
             text = "\n" + text
-        if write_log and self._log_enabled: self.log_writer.write(text)
+        if write_log and self._log_enabled: self.log_writer.write(text, self._log_generation)
         cursor = self.receive_text.textCursor(); cursor.movePosition(QTextCursor.End); cursor.insertText(text, self._receive_text_format(level))
         excess = self.receive_text.document().characterCount() - self.MAX_DISPLAY_CHARS
         if excess > 0:
@@ -319,7 +343,8 @@ class WorkTab(QWidget):
             self._append_system(f"[错误] 创建日志文件失败: {error}\n", "error")
             return False
         self.config_manager.set_last_log_directory(str(Path(filename).parent))
-        self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename); self._append_system(f"[信息] 日志文件: {filename}\n", "info"); return self._log_enabled
+        self.log_writer.take_errors()
+        self.log_file_path = filename; self._log_enabled = self.log_writer.open(filename, self._log_generation); self._append_system(f"[信息] 日志文件: {filename}\n", "info"); return self._log_enabled
     def _clear_receive(self): self.receive_text.clear(); self.receive_decoder.reset(); self.receive_text_segmenter.reset(); self.receive_log_formatter.reset()
     def _reset_counts(self): self.rx_count = self.tx_count = 0; self._update_counts()
     def _update_counts(self): self.count_label.setText(f"RX: {self.rx_count}  TX: {self.tx_count}")
@@ -327,4 +352,8 @@ class WorkTab(QWidget):
         self._theme_manager = theme_manager
         self.receive_text.setFont(QFont("Consolas", font_size)); self.send_text.setFont(QFont("Consolas", font_size)); self._refresh_receive_colors()
     def cleanup(self):
-        self.flush_timer.stop(); self.loop_timer.stop(); self.reconnect_timer.stop(); self._reset_receive_session(); self.serial_manager.close_async(); self._log_enabled = False; self.log_writer.stop()
+        self.flush_timer.stop(); self.loop_timer.stop(); self.reconnect_timer.stop(); self._reset_receive_session(); self.serial_manager.close_async(); self._log_enabled = False
+        completed = self.log_writer.stop()
+        if not completed:
+            print("日志写入器未在 1 秒内完成，退出后剩余日志可能未写入")
+        return completed

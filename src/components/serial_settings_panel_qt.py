@@ -1,5 +1,6 @@
 """Qt 串口参数面板。"""
 
+from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox
 
 from utils.serial_manager_qt import SerialManagerQt
@@ -23,6 +24,7 @@ class SerialSettingsPanel(QGroupBox):
         self.config_manager, self.on_change_callback, self.panel_type = config_manager, on_change_callback, panel_type
         self.port_combo = PortComboBox(self.refresh_ports); self.port_combo.setEditable(False)
         self.baudrate_combo = self._combo(self.BAUDRATES, "115200", editable=True)
+        self.baudrate_combo.lineEdit().setValidator(QIntValidator(1, 4_000_000, self.baudrate_combo))
         self.parity_combo = self._combo(["None", "Even", "Odd", "Mark", "Space"], "None")
         self.bytesize_combo = self._combo(["5", "6", "7", "8"], "8")
         self.stopbits_combo = self._combo(["1", "1.5", "2"], "1")
@@ -32,8 +34,10 @@ class SerialSettingsPanel(QGroupBox):
         form.addRow("校验位:", self.parity_combo); form.addRow("数据位:", self.bytesize_combo)
         form.addRow("停止位:", self.stopbits_combo); form.addRow("流控:", self.flow_control_combo)
         self.port_combo.currentTextChanged.connect(self._on_port_changed)
-        for widget in (self.baudrate_combo, self.parity_combo, self.bytesize_combo, self.stopbits_combo, self.flow_control_combo):
+        for widget in (self.parity_combo, self.bytesize_combo, self.stopbits_combo, self.flow_control_combo):
             widget.currentTextChanged.connect(self._save)
+        self.baudrate_combo.currentTextChanged.connect(self._save_baudrate_if_valid)
+        self.baudrate_combo.lineEdit().editingFinished.connect(self._normalize_baudrate_and_save)
         self.refresh_ports()
 
     @staticmethod
@@ -71,9 +75,27 @@ class SerialSettingsPanel(QGroupBox):
             settings = self.get_settings(); self.config_manager.update_serial_settings(port, settings)
             if self.on_change_callback: self.on_change_callback("settings", settings)
 
+    def _normalize_baudrate_and_save(self):
+        if self._baudrate_value() is None:
+            self.baudrate_combo.setCurrentText("115200")
+        self._save()
+
+    def _save_baudrate_if_valid(self):
+        if self._baudrate_value() is not None:
+            self._save()
+
+    def _baudrate_value(self):
+        try:
+            baudrate = int(self.baudrate_combo.currentText())
+        except ValueError:
+            return None
+        return baudrate if 1 <= baudrate <= 4_000_000 else None
+
     def get_settings(self):
-        try: baudrate = int(self.baudrate_combo.currentText())
-        except ValueError: baudrate = 115200
+        baudrate = self._baudrate_value()
+        if baudrate is None:
+            baudrate = 115200
+            self.baudrate_combo.setCurrentText(str(baudrate))
         try: stopbits = float(self.stopbits_combo.currentText())
         except ValueError: stopbits = 1
         return {"baudrate": baudrate, "parity": self.parity_combo.currentText(), "bytesize": int(self.bytesize_combo.currentText()), "stopbits": stopbits, "flow_control": self.flow_control_combo.currentText()}

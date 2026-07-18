@@ -45,6 +45,7 @@ class SerialManager:
         self.last_check_time = 0
         self._operation_lock = threading.RLock()
         self._open_generation = 0
+        self._receive_stop_event = None
         self._open_in_flight = False
         self._close_in_flight = False
         self._send_in_flight = False
@@ -56,19 +57,19 @@ class SerialManager:
     def _is_port_available(self, port_name):
         return port_name in self.get_available_ports()
 
-    def _check_port_health(self):
-        if not self.serial_port:
+    def _check_port_health(self, port):
+        if not port:
             return False, "串口对象不存在"
         try:
-            if not self.serial_port.is_open:
+            if not port.is_open:
                 return False, "串口未打开"
-            port_name = self.serial_port.port
+            port_name = port.port
             if not self._is_port_available(port_name):
                 return False, f"串口 {port_name} 已被移除"
             try:
-                _ = self.serial_port.cts
-                _ = self.serial_port.dsr
-                _ = self.serial_port.in_waiting
+                _ = port.cts
+                _ = port.dsr
+                _ = port.in_waiting
             except (OSError, AttributeError) as error:
                 return False, f"串口状态异常: {error}"
             return True, None
@@ -86,12 +87,16 @@ class SerialManager:
     def _invalidate_open(self, generation):
         """使尚未完成的打开操作失效，并释放恰好在超时边界完成的串口。"""
         port = None
+        stop_event = None
         with self._operation_lock:
             if generation != self._open_generation:
                 return
             self._open_generation += 1
             self.is_running = False
+            stop_event = self._receive_stop_event
             port, self.serial_port = self.serial_port, None
+        if stop_event:
+            stop_event.set()
         self._close_port(port)
 
     def open(self, port, baudrate=115200, parity="None", bytesize=8,
@@ -100,7 +105,7 @@ class SerialManager:
         with self._operation_lock:
             # 超时仅结束调用方等待，不能安全终止底层串口打开线程；在线程收尾前
             # 保持该标记以拒绝重试，避免并发打开同一串口。
-            if self._open_in_flight or self._close_in_flight:
+            if self._open_in_flight or self._close_in_flight or (self.receive_thread and self.receive_thread.is_alive()):
                 print("打开串口失败: 串口操作仍在进行")
                 return False
             if self.serial_port and self.serial_port.is_open:
@@ -142,7 +147,13 @@ class SerialManager:
                         return
                     self.serial_port = opened_port
                     self.is_running = True
-                    self.receive_thread = threading.Thread(target=self._receive_loop, daemon=True)
+                    stop_event = threading.Event()
+                    self._receive_stop_event = stop_event
+                    self.receive_thread = threading.Thread(
+                        target=self._receive_loop,
+                        args=(opened_port, stop_event, generation),
+                        daemon=True,
+                    )
                     self.receive_thread.start()
                     result["success"] = True
             except Exception as error:
@@ -170,7 +181,10 @@ class SerialManager:
                 return False
             self._open_generation += 1
             self.is_running = False
-            self.receive_thread = None
+            receive_thread = self.receive_thread
+            stop_event = self._receive_stop_event
+            if stop_event:
+                stop_event.set()
             port, self.serial_port = self.serial_port, None
             if not port:
                 return True
@@ -183,11 +197,18 @@ class SerialManager:
             try:
                 if port.is_open:
                     port.close()
+                if receive_thread and receive_thread is not threading.current_thread():
+                    # close() 会先受外层 1 秒超时约束；若接收线程仍在系统调用中，
+                    # 保持关闭标记直到它真正退出，避免新会话与旧线程并发读取。
+                    receive_thread.join()
                 result["success"] = True
             except Exception as error:
                 result["error"] = str(error)
             finally:
                 with self._operation_lock:
+                    if self.receive_thread is receive_thread:
+                        self.receive_thread = None
+                        self._receive_stop_event = None
                     self._close_in_flight = False
                 completed.set()
 
@@ -199,21 +220,29 @@ class SerialManager:
         print(f"关闭串口超时（{self.operation_timeout}秒）")
         return False
 
-    def _receive_loop(self):
-        while self.is_running:
+    def _receive_loop(self, port, stop_event, generation):
+        """只操作所属会话的串口，旧会话绝不读取新打开的端口。"""
+        last_check_time = 0
+        while not stop_event.is_set():
             try:
                 current_time = time.time()
-                if current_time - self.last_check_time > self.check_interval:
-                    self.last_check_time = current_time
-                    is_healthy, error_message = self._check_port_health()
+                if current_time - last_check_time > self.check_interval:
+                    last_check_time = current_time
+                    is_healthy, error_message = self._check_port_health(port)
                     if not is_healthy:
                         print(f"串口健康检查失败: {error_message}")
                         raise serial.SerialException(error_message)
-                if self.serial_port and self.serial_port.is_open:
+                if port.is_open:
                     try:
-                        if self.serial_port.in_waiting:
-                            data = self.serial_port.read(self.serial_port.in_waiting)
-                            if self.receive_callback and data:
+                        if port.in_waiting:
+                            data = port.read(port.in_waiting)
+                            with self._operation_lock:
+                                is_current = (
+                                    not stop_event.is_set()
+                                    and generation == self._open_generation
+                                    and self.serial_port is port
+                                )
+                            if is_current and self.receive_callback and data:
                                 self.receive_callback(data)
                         else:
                             time.sleep(0.01)
@@ -222,19 +251,26 @@ class SerialManager:
                     except (OSError, serial.SerialException) as error:
                         print(f"读取数据错误: {error}")
                         raise
-                elif self.is_running:
+                elif not stop_event.is_set():
                     raise serial.SerialException("串口对象无效")
                 else:
                     break
             except Exception as error:
-                if self.is_running:
+                if not stop_event.is_set():
                     print(f"串口异常断开: {error}")
-                    self.is_running = False
-                    port, self.serial_port = self.serial_port, None
+                    with self._operation_lock:
+                        is_current = generation == self._open_generation and self.serial_port is port
+                        if is_current:
+                            self.is_running = False
+                            self.serial_port = None
                     self._close_port(port)
-                    if self.disconnect_callback:
+                    if is_current and self.disconnect_callback:
                         self.disconnect_callback()
                 break
+        with self._operation_lock:
+            if self.receive_thread is threading.current_thread():
+                self.receive_thread = None
+                self._receive_stop_event = None
 
     def send(self, data, mode="TEXT", encoding="UTF-8"):
         """在限定时间内写入，超时时拒绝后续并发写入直到原操作结束。"""
