@@ -3,7 +3,7 @@
 ## 技术约束
 
 - 使用 Python 3、PySide6 + Qt Widgets、pyserial 和 PyInstaller。
-- 不引入 wxPython、Tkinter 或其他 GUI 框架实现。
+- 使用 PySide6 + Qt Widgets，不引入其他 GUI 框架实现。
 - 不新增未确认依赖；需要新增依赖时，同步更新 `requirements.txt`、`README.md` 和设计文档。
 
 ## 代码约定
