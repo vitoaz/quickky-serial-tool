@@ -14,6 +14,7 @@ class LogWriter:
         self._pending_bytes = 0
         self._max_pending_bytes = max_pending_bytes
         self._dropped_bytes = 0
+        self._errors = deque()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -48,6 +49,30 @@ class LogWriter:
             dropped, self._dropped_bytes = self._dropped_bytes, 0
             return dropped
 
+    def take_errors(self):
+        """返回并清空后台日志操作失败信息。"""
+        with self._condition:
+            errors = list(self._errors)
+            self._errors.clear()
+            return errors
+
+    def _record_error(self, message):
+        with self._condition:
+            self._errors.append(message)
+
+    def _close_stream(self, stream):
+        if not stream:
+            return None
+        try:
+            stream.flush()
+        except OSError as error:
+            self._record_error(f"关闭日志文件失败: {error}")
+        try:
+            stream.close()
+        except OSError as error:
+            self._record_error(f"关闭日志文件失败: {error}")
+        return None
+
     def _run(self):
         stream = None
         while True:
@@ -58,24 +83,21 @@ class LogWriter:
                 self._pending_bytes -= size
             if command == "open":
                 if stream:
-                    stream.flush()
-                    stream.close()
+                    stream = self._close_stream(stream)
                 try:
                     stream = Path(value).open("a", encoding="utf-8")
-                except OSError:
+                except OSError as error:
                     stream = None
+                    self._record_error(f"无法打开日志文件: {error}")
             elif command == "write" and stream:
                 try:
                     stream.write(value)
-                except OSError:
-                    stream.close()
-                    stream = None
+                except OSError as error:
+                    stream = self._close_stream(stream)
+                    self._record_error(f"写入日志文件失败: {error}")
             elif command == "close" and stream:
-                stream.flush()
-                stream.close()
-                stream = None
+                stream = self._close_stream(stream)
             elif command == "stop":
                 if stream:
-                    stream.flush()
-                    stream.close()
+                    self._close_stream(stream)
                 return

@@ -69,12 +69,14 @@ class ReceiveTextSegmenter:
 class ReceiveLogFormatter:
     """维护日志模式的时间戳拼接状态，不依赖界面框架。"""
 
+    MAX_CONTINUOUS_SECONDS = 0.1
+
     def __init__(self):
         self.reset()
 
     def reset(self):
         """使下一条日志内容重新添加时间戳。"""
-        self.last_append_time = None
+        self.last_timestamp_time = None
         self.last_line_ended = True
 
     def format(self, text, log_mode, now=None):
@@ -82,19 +84,20 @@ class ReceiveLogFormatter:
         now = now or datetime.now()
         if not log_mode:
             self.last_line_ended = text.endswith("\n")
-            self.last_append_time = now
+            self.last_timestamp_time = None
             return text
         needs_timestamp = (
             self.last_line_ended
-            or self.last_append_time is None
-            or (now - self.last_append_time).total_seconds() > 0.1
+            or self.last_timestamp_time is None
+            or (now - self.last_timestamp_time).total_seconds() > self.MAX_CONTINUOUS_SECONDS
         )
         if needs_timestamp:
             timestamp = now.strftime("[%H:%M:%S.%f")[:-3] + "] "
             prefix = "" if self.last_line_ended or text.startswith("\n") else "\n"
             text = prefix + timestamp + text
+            # 使用时间戳起始时间而非上一数据包时间，保证高频连续数据也会分行。
+            self.last_timestamp_time = now
         self.last_line_ended = text.endswith("\n")
-        self.last_append_time = now
         return text
 
 

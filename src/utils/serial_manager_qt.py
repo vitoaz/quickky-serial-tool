@@ -21,9 +21,10 @@ class SerialManagerQt(QObject):
         self._pending_bytes = 0
         self._max_pending_bytes = max_pending_bytes
         self._lock = threading.Lock()
+        self._operation_lock = threading.Lock()
         self._dropped_bytes = 0
         self._manager.set_receive_callback(self._enqueue)
-        self._manager.set_disconnect_callback(self.disconnected.emit)
+        self._manager.set_disconnect_callback(self._emit_disconnected)
 
     @staticmethod
     def get_available_ports():
@@ -64,13 +65,30 @@ class SerialManagerQt(QObject):
             self._pending_bytes = 0
             self._dropped_bytes = 0
 
+    def _emit_disconnected(self):
+        try:
+            self.disconnected.emit()
+        except RuntimeError:
+            # 清理页面后后台接收线程可能仍在结束，不再向已删除的 QObject 发信号。
+            pass
+
+    def _emit_operation_completed(self, operation, success):
+        try:
+            self.operation_completed.emit(operation, success)
+        except RuntimeError:
+            # 与断开通知相同，页面销毁后忽略晚到的后台操作结果。
+            pass
+
     def _run_async(self, operation, callback):
         def runner():
-            try:
-                result = callback()
-                self.operation_completed.emit(operation, bool(result) if result is not None else True)
-            except Exception:
-                self.operation_completed.emit(operation, False)
+            with self._operation_lock:
+                try:
+                    result = callback()
+                    success = bool(result) if result is not None else True
+                except Exception:
+                    success = False
+                # 保持完成信号顺序与底层操作顺序一致，避免打开/关闭状态倒置。
+                self._emit_operation_completed(operation, success)
         threading.Thread(target=runner, daemon=True).start()
 
     def open_async(self, **settings):

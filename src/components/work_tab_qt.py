@@ -34,7 +34,7 @@ class WorkTab(QWidget):
         self.serial_manager.operation_completed.connect(self._on_operation_completed)
         self.log_writer = LogWriter(); self.log_file_path = None; self._log_enabled = False; self.rx_count = self.tx_count = 0
         self._theme_manager = None
-        self.receive_decoder = ReceiveTextDecoder(); self.receive_text_segmenter = ReceiveTextSegmenter(); self.receive_log_formatter = ReceiveLogFormatter(); self._send_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
+        self.receive_decoder = ReceiveTextDecoder(); self.receive_text_segmenter = ReceiveTextSegmenter(); self.receive_log_formatter = ReceiveLogFormatter(); self._send_in_flight = False; self._connection_in_flight = False; self._pending_send = None; self._loop_send_cancelled = False; self._scroll_pending = False
         self.flush_timer = QTimer(self); self.flush_timer.timeout.connect(self._flush_receive)
         self.loop_timer = QTimer(self); self.loop_timer.timeout.connect(lambda: self._send_data(from_timer=True))
         self.reconnect_timer = QTimer(self); self.reconnect_timer.setSingleShot(True); self.reconnect_timer.timeout.connect(self._try_reconnect)
@@ -104,24 +104,29 @@ class WorkTab(QWidget):
     def _on_send_mode_changed(self, old_mode, new_mode):
         text = self.send_text.toPlainText()
         if not text: return
+        line_ending = self.send_settings.get_settings()["line_ending"]
+        encoding = self.receive_settings.get_settings()["encoding"].replace("-", "").lower()
         try:
             if old_mode == "TEXT" and new_mode == "HEX":
-                # QPlainTextEdit 将编辑器中的换行统一表示为 "\n"；串口文本
-                # 发送与 TEXT -> HEX 转换均使用 Windows 风格的 CRLF。
-                converted = SendDataUtils.text_to_hex(text)
+                converted = SendDataUtils.text_to_hex(text, encoding, line_ending)
             elif old_mode == "HEX" and new_mode == "TEXT":
-                converted = SendDataUtils.hex_to_text(text)
+                converted = SendDataUtils.hex_to_text(text, encoding, line_ending)
             else: return
         except ValueError:
             return
         self.send_text.setPlainText(converted)
 
     def _toggle_connection(self):
+        if self._connection_in_flight: return
         if self.serial_manager.is_open(): self._close_connection(); return
         port = self.serial_settings.get_current_port()
         if not port: self._append_system("[错误] 请先选择串口\n", "error"); return
+        self._open_connection(port)
+
+    def _open_connection(self, port):
         self._reset_receive_session()
-        self.connect_btn.setEnabled(False); self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
+        self._connection_in_flight = True
+        self.connect_btn.setEnabled(False); self.serial_settings.set_enabled(False); self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
 
     def _close_connection(self):
         self._stop_loop_send(); self.reconnect_timer.stop(); self._reset_receive_session(); self.connect_btn.setEnabled(False); self.serial_manager.close_async()
@@ -151,7 +156,7 @@ class WorkTab(QWidget):
             parent = parent.parentWidget()
 
     def _on_disconnected(self):
-        self._stop_loop_send(); self._reset_receive_session(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
+        self._connection_in_flight = False; self._stop_loop_send(); self._reset_receive_session(); self._set_connection_state(False); self._append_system("[警告] 串口异常断开\n", "warning")
         if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
 
     def _schedule_reconnect(self):
@@ -159,18 +164,22 @@ class WorkTab(QWidget):
         self.reconnect_timer.start(int(interval * 1000))
 
     def _try_reconnect(self):
-        if not self.receive_settings.get_settings()["auto_reconnect"] or self.serial_manager.is_open(): return
+        if not self.receive_settings.get_settings()["auto_reconnect"] or self.serial_manager.is_open() or self._connection_in_flight: return
         port = self.serial_settings.get_current_port()
         if port:
-            self.serial_manager.open_async(port=port, **self.serial_settings.get_settings())
+            self._open_connection(port)
         else:
             self._append_system("[警告] 自动重连失败，稍后重试\n", "warning"); self._schedule_reconnect()
 
     def _flush_receive(self):
         data, dropped = self.serial_manager.drain(self.MAX_FLUSH_BYTES)
+        if dropped: self.rx_count += dropped; self._update_counts()
         if dropped: self._append_text(f"[警告] 接收缓冲已满，丢弃 {dropped} 字节\n", force=True, level="warning")
         log_dropped = self.log_writer.take_dropped_bytes()
         if log_dropped: self._append_text(f"[警告] 日志写入缓冲已满，丢弃 {log_dropped} 字节\n", force=True, level="warning", write_log=False)
+        log_errors = self.log_writer.take_errors()
+        if log_errors:
+            self._disable_logging("；".join(dict.fromkeys(log_errors)))
         if not data: return
         max_blocks = self.config_manager.get_global_settings().get("receive_buffer_size", 10000)
         if self.receive_text.document().maximumBlockCount() != max_blocks:
@@ -188,6 +197,13 @@ class WorkTab(QWidget):
             self._append_text(ReceiveDataUtils.format_hex(data))
 
     def _append_system(self, text, level="info"): self._append_text(text, force=True, level=level)
+
+    def _disable_logging(self, error):
+        """后台日志失败后同步界面状态，避免继续显示保存已启用。"""
+        self._close_log_writer()
+        checkbox = self.receive_settings.save_log_check
+        if checkbox.isChecked(): checkbox.setChecked(False)
+        self._append_text(f"[错误] {error}\n", force=True, level="error", write_log=False)
 
     def _append_text(self, text, force=False, level="normal", write_log=True):
         if not text: return
@@ -252,24 +268,33 @@ class WorkTab(QWidget):
             if mode == "HEX":
                 byte_count = len(SendDataUtils.parse_hex(data))
             else:
-                send_data, encoding, encoded = SendDataUtils.encode_text(data, encoding)
+                send_data, encoding, encoded = SendDataUtils.encode_text(data, encoding, settings["line_ending"])
                 byte_count = len(encoded)
         except (ValueError, UnicodeEncodeError): self._append_system("[错误] 发送内容无效\n", "error"); return
         self._send_in_flight = True; self._pending_send = (data, mode, byte_count, add_to_history, settings, override_mode)
         self.serial_manager.send_async(send_data if mode == "TEXT" else data, mode, encoding)
 
-    def send_data(self, data, mode): self.send_text.setPlainText(data); self._send_data(mode, add_to_history=False)
+    def send_data(self, data, mode, add_to_history=True): self.send_text.setPlainText(data); self._send_data(mode, add_to_history=add_to_history)
     def _save_send_draft(self):
         port = self.serial_settings.get_current_port()
         if port: self.config_manager.set_send_text(port, self.send_text.toPlainText())
     def _on_operation_completed(self, operation, success):
         if operation == "open":
+            self._connection_in_flight = False
             self.connect_btn.setEnabled(True)
             if success: self._set_connection_state(True); self._append_system(f"[信息] 已打开串口: {self.serial_settings.get_current_port()}\n", "success")
             else:
                 self._set_connection_state(False); self._append_system("[错误] 无法打开串口\n", "error")
                 if self.receive_settings.get_settings()["auto_reconnect"]: self._schedule_reconnect()
-        elif operation == "close": self._reset_receive_session(); self.connect_btn.setEnabled(True); self._set_connection_state(False); self._append_system("[信息] 串口已关闭\n", "info")
+        elif operation == "close":
+            self._connection_in_flight = False
+            self._reset_receive_session()
+            self.connect_btn.setEnabled(True)
+            self._set_connection_state(False)
+            if success:
+                self._append_system("[信息] 串口已关闭\n", "info")
+            else:
+                self._append_system("[错误] 关闭串口失败或超时\n", "error")
         elif operation == "send":
             self._send_in_flight = False
             if not self._pending_send: return

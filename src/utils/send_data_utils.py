@@ -6,10 +6,28 @@ from utils.hex_utils import HexUtils
 class SendDataUtils:
     """统一处理发送文本换行、HEX 转换与编码选择。"""
 
+    LINE_ENDINGS = {"NONE": "", "CR": "\r", "LF": "\n", "CRLF": "\r\n"}
+
     @staticmethod
     def normalize_text_newlines(text):
-        """将逻辑换行统一转换为串口文本发送使用的 CRLF。"""
+        """将编辑器中的逻辑换行统一为内部保存使用的 CRLF。"""
         return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\r\n")
+
+    @classmethod
+    def apply_line_ending(cls, text, line_ending="CRLF"):
+        """将内部 CRLF 规范文本转换为当前串口的实际行尾。"""
+        if line_ending not in cls.LINE_ENDINGS:
+            raise ValueError("不支持的发送行尾")
+        return cls.normalize_text_newlines(text).replace("\r\n", cls.LINE_ENDINGS[line_ending])
+
+    @classmethod
+    def restore_line_ending(cls, text, line_ending="CRLF"):
+        """将 HEX 解码得到的当前行尾还原为编辑器使用的 CRLF。"""
+        if line_ending not in cls.LINE_ENDINGS:
+            raise ValueError("不支持的发送行尾")
+        if line_ending == "NONE":
+            return text
+        return cls.normalize_text_newlines(text.replace(cls.LINE_ENDINGS[line_ending], "\n"))
 
     @staticmethod
     def get_encoding_candidates(encoding):
@@ -25,19 +43,19 @@ class SendDataUtils:
         return bytes.fromhex(cleaned)
 
     @classmethod
-    def text_to_hex(cls, text, encoding="utf-8"):
-        """将文本按 CRLF 和指定编码转换为 HEX 显示文本。"""
-        return cls.normalize_text_newlines(text).encode(encoding).hex(" ").upper()
+    def text_to_hex(cls, text, encoding="utf-8", line_ending="CRLF"):
+        """将文本按指定行尾和编码转换为 HEX 显示文本。"""
+        return cls.apply_line_ending(text, line_ending).encode(encoding).hex(" ").upper()
 
     @classmethod
-    def hex_to_text(cls, text, encoding="utf-8"):
-        """将 HEX 文本转换为文本，保留既有的忽略无效字符策略。"""
-        return cls.parse_hex(text).decode(encoding, errors="ignore")
+    def hex_to_text(cls, text, encoding="utf-8", line_ending="CRLF"):
+        """将 HEX 文本转换为规范 CRLF 文本，并以替换字符保留无法解码的字节。"""
+        return cls.restore_line_ending(cls.parse_hex(text).decode(encoding, errors="replace"), line_ending)
 
     @classmethod
-    def encode_text(cls, text, encoding):
-        """规范化换行并按可用编码编码，返回文本、实际编码和字节数据。"""
-        normalized = cls.normalize_text_newlines(text)
+    def encode_text(cls, text, encoding, line_ending="CRLF"):
+        """按指定行尾和可用编码编码，返回实际发送文本、编码和字节数据。"""
+        normalized = cls.apply_line_ending(text, line_ending)
         for candidate in cls.get_encoding_candidates(encoding):
             try:
                 return normalized, candidate, normalized.encode(candidate.replace("-", "").lower())

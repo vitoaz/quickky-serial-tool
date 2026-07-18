@@ -26,6 +26,7 @@ VERSION           项目当前版本号的唯一来源
 licenses/        Qt/PySide6 发布声明
 docs/design/     设计文档
 docs/guides/     Python 开发与版本发布指南
+tests/           标准库回归测试
 ```
 
 `src/main/app_qt.py` 是 `run.bat` 与 `build.bat` 使用的应用入口。
@@ -40,16 +41,17 @@ docs/guides/     Python 开发与版本发布指南
 - `src/components/work_tab_qt.py`：管理一个串口会话的连接、批量接收显示、发送、循环发送、日志和自动重连。
 - `src/components/*_settings_panel_qt.py`：分别编辑串口、接收和发送设置。
 - `src/components/command_panel_qt.py`、`quick_commands_panel_qt.py`、`quick_command_dialog_qt.py`、`send_history_panel_qt.py`：提供快捷指令和发送历史功能。
-- `src/utils/serial_manager_qt.py`：将串口打开、关闭、发送和后台接收适配为 Qt 可用的异步操作与有界待显示缓冲。
-- `src/utils/log_writer.py`：在后台线程批量写入有界日志队列，避免日志 I/O 阻塞界面线程。
+- `src/utils/serial_manager_qt.py`：串行执行有超时保护的后台串口操作，将结果与有界待显示缓冲适配给 Qt。
+- `src/utils/log_writer.py`：在后台线程批量写入有界日志队列，并回传打开或写入失败状态。
 - `src/utils/theme_manager_qt.py`：加载主题并生成 Qt 样式表。
-- `src/utils/config_manager.py`：读取、更新、导入导出并持久化运行目录中的 `config.json`。
-- `src/utils/serial_manager.py`：封装 pyserial 打开、关闭、收发、接收线程和断线检测。
+- `src/utils/config_manager.py`：读取、规范化、更新、导入导出并持久化运行目录中的 `config.json`。
+- `src/utils/serial_manager.py`：以互斥操作封装 pyserial 打开、关闭、收发、接收线程和断线检测。
 - `src/utils/hex_utils.py`：提供 HEX 数据格式校验。
 - `src/utils/receive_data_utils.py`：提供跨批次文本增量解码、接收格式化与日志模式时间戳拼接。
 - `src/utils/send_data_utils.py`：统一发送文本的 CRLF 换行、HEX 转换、HEX 解析与编码选择。
 - `scripts/release_gitee.py`：读取 `.gitee` 与用户目录令牌，推送全部本地分支和标签到 Gitee，创建或补齐 Release 并上传 ZIP 发布包。
 - `VERSION`：保存当前版本号；版本生成和发布包脚本均从此文件读取版本。
+- `tests/`：覆盖配置、串口通信辅助逻辑和 Qt 工作页关键行为的回归测试。
 
 ## 数据模型
 
@@ -62,7 +64,7 @@ config
 │   └── <串口名>
 │       ├── serial_settings
 │       ├── receive_settings
-│       ├── send_settings
+│       ├── send_settings（含 TEXT 发送行尾）
 │       └── send_text
 ├── quick_command_groups
 ├── send_history
@@ -84,12 +86,12 @@ config
 
 1. 用户在工作 Tab 中选择串口和通信参数，触发连接操作。
 2. `SerialManagerQt` 在后台执行串口打开、关闭、发送和接收；接收数据进入有最大字节数限制的队列，并在串口会话切换时清空未显示的旧数据。
-3. `WorkTab` 每 25ms 最多消费 256 KiB 数据；接收工具按编码增量解码跨批次的多字节字符、保留有效空白字符与跨包行结束符、过滤真正的空行并处理日志时间戳，随后批量写入 `QPlainTextEdit`；接收区禁用自动换行并限制最大行数。日志写入缓冲溢出时，接收区会显示丢弃字节数警告。
-4. 用户通过发送框或快捷指令发送数据时，发送工具将 TEXT 编辑器换行规范化为 `\r\n`，统一处理 TEXT 与 HEX 转换、HEX 解析和编码选择后写入串口；新增或编辑的 TEXT 快捷指令也以 `\r\n` 保存；成功发送的数据写入发送历史。
-5. 日志文件由后台日志写入器保持打开直到会话清理，避免在接收路径执行文件 I/O；切换串口时关闭当前日志文件，避免将新会话数据写入旧路径。
+3. `WorkTab` 每 25ms 最多消费 256 KiB 数据；接收工具按编码增量解码跨批次的多字节字符、保留有效空白字符与跨包行结束符、过滤真正的空行并处理日志时间戳，随后批量写入 `QPlainTextEdit`；接收区禁用自动换行并限制最大行数。日志模式对持续超过 100ms 的连续数据插入换行和新时间戳。RX 统计包含显示缓冲丢弃的字节；日志写入缓冲溢出或后台打开、写入失败时，接收区会显示原因并停止保存日志。
+4. 用户通过发送框或快捷指令发送数据时，发送工具将 TEXT 编辑器与快捷指令换行规范化为内部 `\r\n`；每个串口的 `send_settings.line_ending` 可选 `NONE`、`CR`、`LF` 或 `CRLF`，仅在实际 TEXT 发送和 TEXT/HEX 相互转换时使用。HEX 模式不改写字节；HEX 转 TEXT 后恢复为内部 `\r\n`。成功发送的数据写入发送历史。
+5. 日志文件由后台日志写入器保持打开直到会话清理，避免在接收路径执行文件 I/O；切换串口时关闭当前日志文件，避免将新会话数据写入旧路径。串口打开、关闭和发送均在后台串行执行，并受 1 秒操作超时保护；关闭或发送失败、超时时界面显示错误。超时打开的晚到结果会被关闭，不会覆盖当前会话，且原打开线程结束前会拒绝新的打开请求。
 
 ### 配置与主题
 
 1. 用户调整界面、串口、收发、快捷指令或历史数据。
-2. 相应组件调用 `ConfigManager` 更新内存中的配置并写入运行目录 `config.json`。
+2. `ConfigManager` 在启动加载和导入 JSON 时将缺失、类型错误或不合法的字段恢复为默认值（主题仅允许 `light`、`dark`），丢弃未知结构；相应组件再更新内存中的规范化配置并写入运行目录 `config.json`。
 3. 用户选择主题时，主窗口加载 `themes/` 中对应 JSON 并重新应用 Qt 样式表。
