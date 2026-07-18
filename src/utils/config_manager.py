@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from copy import deepcopy
 from datetime import datetime
 
 from .file_utils import get_base_path
@@ -21,6 +22,7 @@ class ConfigManager:
     def __init__(self, config_file="config.json"):
         self.config_file = os.path.join(get_base_path(), config_file)
         self.config = self._load_config()
+        self._last_saved_config = deepcopy(self.config)
 
     def _get_default_config(self):
         return {
@@ -248,8 +250,12 @@ class ConfigManager:
             return self._get_default_config()
 
     def save_config(self):
+        """仅在配置实际变化时执行原子写入；失败后保留旧快照以便下次重试。"""
+        if self.config == self._last_saved_config:
+            return True
         try:
             self._write_config(self.config)
+            self._last_saved_config = deepcopy(self.config)
             return True
         except OSError as error:
             print(f"保存配置文件失败: {error}")
@@ -314,6 +320,7 @@ class ConfigManager:
             config = self._normalize_config(raw)
             self._write_config(config)
             self.config = config
+            self._last_saved_config = deepcopy(config)
             return True
         except (OSError, ValueError, json.JSONDecodeError, RecursionError) as error:
             print(f"导入配置失败: {error}")

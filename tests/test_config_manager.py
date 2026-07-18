@@ -105,3 +105,23 @@ class ConfigManagerTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()):
                 manager = ConfigManager(str(config_path))
             self.assertEqual(manager.get_theme(), "light")
+
+    def test_unchanged_config_skips_atomic_write_and_failed_write_retries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ConfigManager(str(Path(directory) / "config.json"))
+            with patch.object(manager, "_write_config") as write_config:
+                self.assertTrue(manager.save_config())
+                manager.set_last_port("")
+                self.assertEqual(write_config.call_count, 0)
+
+                manager.set_last_port("COM1")
+                self.assertEqual(write_config.call_count, 1)
+                manager.set_last_port("COM1")
+                self.assertEqual(write_config.call_count, 1)
+
+            manager.set_theme("dark")
+            with patch.object(manager, "_write_config", side_effect=OSError("disk full")):
+                manager.set_theme("light")
+            with patch.object(manager, "_write_config") as write_config:
+                self.assertTrue(manager.save_config())
+                write_config.assert_called_once_with(manager.config)
