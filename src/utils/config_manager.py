@@ -14,7 +14,7 @@ class ConfigManager:
     FLOW_CONTROLS = {"None", "Hardware", "Software"}
     MODES = {"TEXT", "HEX"}
     ENCODINGS = {"UTF-8", "ASCII"}
-    LINE_ENDINGS = {"NONE", "CR", "LF", "CRLF"}
+    LINE_ENDINGS = {"CR", "LF", "CRLF"}
     THEMES = {"light", "dark"}
 
     def __init__(self, config_file="config.json"):

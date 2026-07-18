@@ -45,12 +45,27 @@ class ReceiveAndSendDataTests(unittest.TestCase):
     def test_text_and_hex_conversion_follow_selected_line_ending(self):
         self.assertEqual(SendDataUtils.encode_text("A\nB", "UTF-8", "CR")[2], b"A\rB")
         self.assertEqual(SendDataUtils.encode_text("A\r\nB", "UTF-8", "LF")[2], b"A\nB")
-        self.assertEqual(SendDataUtils.encode_text("A\nB", "UTF-8", "NONE")[2], b"AB")
         self.assertEqual(SendDataUtils.text_to_hex("A\nB", line_ending="CR"), "41 0D 42")
         self.assertEqual(SendDataUtils.hex_to_text("41 0D 42", line_ending="CR"), "A\r\nB")
 
 
 class ConfigManagerTests(unittest.TestCase):
+    def test_send_settings_persist_loop_and_period_with_line_ending(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ConfigManager(str(Path(directory) / "config.json"))
+            manager.update_send_settings("COM1", {
+                "mode": "TEXT",
+                "line_ending": "LF",
+                "loop_send": True,
+                "loop_period_ms": 250,
+            })
+            self.assertEqual(manager.get_port_config("COM1")["send_settings"], {
+                "mode": "TEXT",
+                "line_ending": "LF",
+                "loop_send": True,
+                "loop_period_ms": 250,
+            })
+
     def test_load_and_import_normalize_partial_or_invalid_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             config_path = Path(directory) / "config.json"

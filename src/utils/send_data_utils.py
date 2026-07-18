@@ -6,7 +6,7 @@ from utils.hex_utils import HexUtils
 class SendDataUtils:
     """统一处理发送文本换行、HEX 转换与编码选择。"""
 
-    LINE_ENDINGS = {"NONE": "", "CR": "\r", "LF": "\n", "CRLF": "\r\n"}
+    LINE_ENDINGS = {"CR": "\r", "LF": "\n", "CRLF": "\r\n"}
 
     @staticmethod
     def normalize_text_newlines(text):
@@ -25,8 +25,6 @@ class SendDataUtils:
         """将 HEX 解码得到的当前行尾还原为编辑器使用的 CRLF。"""
         if line_ending not in cls.LINE_ENDINGS:
             raise ValueError("不支持的发送行尾")
-        if line_ending == "NONE":
-            return text
         return cls.normalize_text_newlines(text.replace(cls.LINE_ENDINGS[line_ending], "\n"))
 
     @staticmethod
