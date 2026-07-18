@@ -20,7 +20,9 @@ src/
   components/    Qt 界面组件
   utils/         串口、配置、主题和辅助工具
 themes/          Light、Dark 主题配置
-scripts/         版本信息、发布许可证、发布包与 PyInstaller 裁剪钩子
+scripts/         版本信息、发布许可证、发布包、Gitee Release 与 PyInstaller 裁剪钩子
+.gitee           Gitee 发布仓库与 Git 远程配置（不含令牌）
+VERSION           项目当前版本号的唯一来源
 licenses/        Qt/PySide6 发布声明
 docs/design/     设计文档
 docs/guides/     Python 开发与版本发布指南
@@ -44,6 +46,8 @@ docs/guides/     Python 开发与版本发布指南
 - `src/utils/config_manager.py`：读取、更新、导入导出并持久化运行目录中的 `config.json`。
 - `src/utils/serial_manager.py`：封装 pyserial 打开、关闭、收发、接收线程和断线检测。
 - `src/utils/hex_utils.py`：提供 HEX 数据转换与校验。
+- `scripts/release_gitee.py`：读取 `.gitee` 与用户目录令牌，推送全部本地分支和标签到 Gitee，创建或补齐 Release 并上传 ZIP 发布包。
+- `VERSION`：保存当前版本号；版本生成和发布包脚本均从此文件读取版本。
 
 ## 数据模型
 

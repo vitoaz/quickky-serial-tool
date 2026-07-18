@@ -3,7 +3,7 @@
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from generate_version import VERSION
+from generate_version import load_version
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -11,6 +11,7 @@ DIST_DIR = ROOT_DIR / "dist"
 EXE_FILE = DIST_DIR / "QSerial.exe"
 LICENSE_FILE = DIST_DIR / "LICENSE"
 LICENSES_DIR = DIST_DIR / "licenses"
+VERSION = load_version()
 ARCHIVE_FILE = DIST_DIR / f"QSerial_v{VERSION}.zip"
 
 
